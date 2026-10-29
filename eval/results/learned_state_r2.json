@@ -1,0 +1,1219 @@
+{
+  "version": 20,
+  "next_id": 18,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+      "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+      "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+      "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+    },
+    {
+      "id": 4,
+      "kind": "prompt",
+      "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+      "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+      "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+      "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+    },
+    {
+      "id": 7,
+      "kind": "prompt",
+      "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+      "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+      "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+    },
+    {
+      "id": 9,
+      "kind": "skill",
+      "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+      "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+    },
+    {
+      "id": 10,
+      "kind": "memory",
+      "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+      "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+    },
+    {
+      "id": 11,
+      "kind": "skill",
+      "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+      "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+    },
+    {
+      "id": 12,
+      "kind": "skill",
+      "text": "Testing modules that read env vars at import time: mutate os.environ, `importlib.reload` the module in the test, and in tearDown restore the original value and reload again so later tests see the original state; use assertRaises around reload for invalid values.",
+      "evidence": "This session: tests/test_regression_settings.py needed to prove billing/settings.py no longer raises when APP_ENV is unset and still raises for unknown values. Working pattern used: save/pop APP_ENV in setUp, importlib.reload(settings) inside the test, and in tearDown restore the original value (or pop it) and reload again so other tests see the original state; assertRaises around reload for the invalid-value case. Without the tearDown reload, a reload that raised left ENV='staging' in the module for later tests."
+    },
+    {
+      "id": 13,
+      "kind": "skill",
+      "text": "Before finishing a multi-bug changeset, audit it against lesson #2: each code bug fix needs its own `test_regression_`-named test in tests/ — an existing test that already covers the behavior does not substitute.",
+      "evidence": "This session: the tax.py fix (`+ 1` removal) had coverage only via the pre-existing tests/test_tax.py, so I added no test_regression_-named test for it; lesson #2 requires every bug fix to include one. Found during this review; fixed by adding tests/test_regression_tax.py and a CHANGELOG bullet. Lesson #2 itself is correct — the gap was not auditing each fix in the changeset against it."
+    },
+    {
+      "id": 14,
+      "kind": "prompt",
+      "text": "In the user's repos, every new public function must have full type hints (all parameters and the return type) and a docstring.",
+      "evidence": "User review feedback after reverse_words was added to strings/ops.py without type hints or a docstring; they stated this is a repo-wide convention for all new functions."
+    },
+    {
+      "id": 15,
+      "kind": "prompt",
+      "text": "In the user's repos, every error raised by library code must be an AppError subclass from the package's errors.py — never ValueError or other built-in exceptions.",
+      "evidence": "Review feedback: user asked that every error raised by library code in their repos be AppError from the package's errors.py, never ValueError or other built-ins. Verified users/validate.py already raises InvalidAgeError(AppError) from users/errors.py."
+    },
+    {
+      "id": 16,
+      "kind": "skill",
+      "text": "Never run `rg -rn \"pattern\"` — `-r` is rg's `--replace` flag, so `-rn` silently rewrites the printed matches (e.g. showing `def n(age: int)` for `def validate_age(age: int)`), not the real file text. Always use `rg -n` for line-numbered search.",
+      "evidence": "In this session I ran `rg -rn \"validate_age\" --glob '!tests/*' .` while checking for other callers; output came back as `./users/validate.py:def n(age: int) -> bool:` — `rg` had interpreted `-r n` as `--replace n`, mangling the matched lines. The correct call is `rg -n`; the mangled output could easily have been misread as corrupted source."
+    },
+    {
+      "id": 17,
+      "kind": "skill",
+      "text": "When a review asks you to change code, first grep the repo for the current pattern before editing: the fix may already be in place, in which case report compliance rather than inventing a change.",
+      "evidence": "In this session's review feedback asked me to change library code to raise AppError instead of built-ins. Before editing I grepped every raise site (`rg -n \"raise |ValueError|TypeError|...\" --type py .`); the only raise already used InvalidAgeError(AppError) from users/errors.py, so no code change was needed — I reported that and recorded the convention as lesson #15 instead of inventing an unnecessary edit."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py): the inventory repo, and the greet repo where I bootstrapped tests/ this session.",
+          "evidence": "In this session's greet repo, `ls -a` and a `find` for CHANGELOG.md/tests showed neither existed; I bootstrapped tests/ as a package and `python -m unittest discover -s tests` from the repo root ran the new test and passed — same pattern as the inventory repo, so the fact generalizes to both repos."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "remove #3: Superseded by lesson #8, which generalizes this session's confirmed unittest-discovery pattern (`python -m unittest discover -s tests`, tests/ a package) from the inventory repo to all the user's Python repos, including the greet repo where I bootstrapped tests/ this session; keeping the narrower memory would contradict #8.",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The inventory repo uses Python's unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py).",
+          "evidence": "In this session the inventory repo's tests (tests/test_stock.py) turned out to be unittest-based with a tests/__init__.py, and the only way I verified the Stock.remove fix was `python -m unittest discover -s tests` run from the repo root, which passed both tests. No pytest config or CI hint in the repo pointed at this command, so it had to be discovered."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py): the inventory repo, and the greet repo where I bootstrapped tests/ this session.",
+          "evidence": "In this session's greet repo, `ls -a` and a `find` for CHANGELOG.md/tests showed neither existed; I bootstrapped tests/ as a package and `python -m unittest discover -s tests` from the repo root ran the new test and passed — same pattern as the inventory repo, so the fact generalizes to both repos."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py): the inventory repo, and the greet repo where I bootstrapped tests/ this session.",
+          "evidence": "In this session's greet repo, `ls -a` and a `find` for CHANGELOG.md/tests showed neither existed; I bootstrapped tests/ as a package and `python -m unittest discover -s tests` from the repo root ran the new test and passed — same pattern as the inventory repo, so the fact generalizes to both repos."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "update #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `python -m unittest discover -s tests` (tests/ is a package with __init__.py): the inventory repo, and the greet repo where I bootstrapped tests/ this session.",
+          "evidence": "In this session's greet repo, `ls -a` and a `find` for CHANGELOG.md/tests showed neither existed; I bootstrapped tests/ as a package and `python -m unittest discover -s tests` from the repo root ran the new test and passed — same pattern as the inventory repo, so the fact generalizes to both repos."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "add #12",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+          "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "add #13",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+          "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+        },
+        {
+          "id": 12,
+          "kind": "skill",
+          "text": "Testing modules that read env vars at import time: mutate os.environ, `importlib.reload` the module in the test, and in tearDown restore the original value and reload again so later tests see the original state; use assertRaises around reload for invalid values.",
+          "evidence": "This session: tests/test_regression_settings.py needed to prove billing/settings.py no longer raises when APP_ENV is unset and still raises for unknown values. Working pattern used: save/pop APP_ENV in setUp, importlib.reload(settings) inside the test, and in tearDown restore the original value (or pop it) and reload again so other tests see the original state; assertRaises around reload for the invalid-value case. Without the tearDown reload, a reload that raised left ENV='staging' in the module for later tests."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #14",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+          "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+        },
+        {
+          "id": 12,
+          "kind": "skill",
+          "text": "Testing modules that read env vars at import time: mutate os.environ, `importlib.reload` the module in the test, and in tearDown restore the original value and reload again so later tests see the original state; use assertRaises around reload for invalid values.",
+          "evidence": "This session: tests/test_regression_settings.py needed to prove billing/settings.py no longer raises when APP_ENV is unset and still raises for unknown values. Working pattern used: save/pop APP_ENV in setUp, importlib.reload(settings) inside the test, and in tearDown restore the original value (or pop it) and reload again so other tests see the original state; assertRaises around reload for the invalid-value case. Without the tearDown reload, a reload that raised left ENV='staging' in the module for later tests."
+        },
+        {
+          "id": 13,
+          "kind": "skill",
+          "text": "Before finishing a multi-bug changeset, audit it against lesson #2: each code bug fix needs its own `test_regression_`-named test in tests/ — an existing test that already covers the behavior does not substitute.",
+          "evidence": "This session: the tax.py fix (`+ 1` removal) had coverage only via the pre-existing tests/test_tax.py, so I added no test_regression_-named test for it; lesson #2 requires every bug fix to include one. Found during this review; fixed by adding tests/test_regression_tax.py and a CHANGELOG bullet. Lesson #2 itself is correct — the gap was not auditing each fix in the changeset against it."
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "reason": "add #15",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+          "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+        },
+        {
+          "id": 12,
+          "kind": "skill",
+          "text": "Testing modules that read env vars at import time: mutate os.environ, `importlib.reload` the module in the test, and in tearDown restore the original value and reload again so later tests see the original state; use assertRaises around reload for invalid values.",
+          "evidence": "This session: tests/test_regression_settings.py needed to prove billing/settings.py no longer raises when APP_ENV is unset and still raises for unknown values. Working pattern used: save/pop APP_ENV in setUp, importlib.reload(settings) inside the test, and in tearDown restore the original value (or pop it) and reload again so other tests see the original state; assertRaises around reload for the invalid-value case. Without the tearDown reload, a reload that raised left ENV='staging' in the module for later tests."
+        },
+        {
+          "id": 13,
+          "kind": "skill",
+          "text": "Before finishing a multi-bug changeset, audit it against lesson #2: each code bug fix needs its own `test_regression_`-named test in tests/ — an existing test that already covers the behavior does not substitute.",
+          "evidence": "This session: the tax.py fix (`+ 1` removal) had coverage only via the pre-existing tests/test_tax.py, so I added no test_regression_-named test for it; lesson #2 requires every bug fix to include one. Found during this review; fixed by adding tests/test_regression_tax.py and a CHANGELOG bullet. Lesson #2 itself is correct — the gap was not auditing each fix in the changeset against it."
+        },
+        {
+          "id": 14,
+          "kind": "prompt",
+          "text": "In the user's repos, every new public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "User review feedback after reverse_words was added to strings/ops.py without type hints or a docstring; they stated this is a repo-wide convention for all new functions."
+        }
+      ]
+    },
+    {
+      "version": 18,
+      "reason": "add #16",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+          "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+        },
+        {
+          "id": 12,
+          "kind": "skill",
+          "text": "Testing modules that read env vars at import time: mutate os.environ, `importlib.reload` the module in the test, and in tearDown restore the original value and reload again so later tests see the original state; use assertRaises around reload for invalid values.",
+          "evidence": "This session: tests/test_regression_settings.py needed to prove billing/settings.py no longer raises when APP_ENV is unset and still raises for unknown values. Working pattern used: save/pop APP_ENV in setUp, importlib.reload(settings) inside the test, and in tearDown restore the original value (or pop it) and reload again so other tests see the original state; assertRaises around reload for the invalid-value case. Without the tearDown reload, a reload that raised left ENV='staging' in the module for later tests."
+        },
+        {
+          "id": 13,
+          "kind": "skill",
+          "text": "Before finishing a multi-bug changeset, audit it against lesson #2: each code bug fix needs its own `test_regression_`-named test in tests/ — an existing test that already covers the behavior does not substitute.",
+          "evidence": "This session: the tax.py fix (`+ 1` removal) had coverage only via the pre-existing tests/test_tax.py, so I added no test_regression_-named test for it; lesson #2 requires every bug fix to include one. Found during this review; fixed by adding tests/test_regression_tax.py and a CHANGELOG bullet. Lesson #2 itself is correct — the gap was not auditing each fix in the changeset against it."
+        },
+        {
+          "id": 14,
+          "kind": "prompt",
+          "text": "In the user's repos, every new public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "User review feedback after reverse_words was added to strings/ops.py without type hints or a docstring; they stated this is a repo-wide convention for all new functions."
+        },
+        {
+          "id": 15,
+          "kind": "prompt",
+          "text": "In the user's repos, every error raised by library code must be an AppError subclass from the package's errors.py — never ValueError or other built-in exceptions.",
+          "evidence": "Review feedback: user asked that every error raised by library code in their repos be AppError from the package's errors.py, never ValueError or other built-ins. Verified users/validate.py already raises InvalidAgeError(AppError) from users/errors.py."
+        }
+      ]
+    },
+    {
+      "version": 19,
+      "reason": "add #17",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Every change in the user's repos must add a bullet describing it under `## Unreleased` in CHANGELOG.md, in all future work.",
+          "evidence": "Review feedback on the slugify fix in this session: the user requires a CHANGELOG.md bullet under `## Unreleased` for every change, now and in all future work."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When the user reports a bug, add a failing regression test for the exact reported case before fixing, then fix and run the suite — don't verify only with an ad-hoc one-off command.",
+          "evidence": "In this session the reported bug `slugify('Hello World')` had no test: tests/test_slug.py only covered `'a b'` (already lowercase), so verification of the fix was an ad-hoc `python -c` repro that nothing later would re-run. Adding a regression test for the reported case first would have made the fix self-verifying and caught regressions."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must include a regression test in tests/ whose test method name starts with `test_regression_` (e.g. `test_regression_remove_too_much_raises`).",
+          "evidence": "Review feedback after the Stock.remove fix: the user requires that in all their repos, every bug fix comes with a regression test in tests/ whose method name starts with `test_regression_`; the test I added was named `test_remove_...` and had to be renamed."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Every new source file you create in the user's repos must start with the line `# SPDX-License-Identifier: Apache-2.0` on line 1.",
+          "evidence": "User review feedback on shapes/circle.py: every new source file must start with `# SPDX-License-Identifier: Apache-2.0`; had to add the header retroactively."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or warnings for diagnostics; use a module-level `logger = logging.getLogger(__name__)` and logger.warning(...) etc.",
+          "evidence": "User review feedback on loader/config.py: my `warnings.warn` fix for the missing-config-file case was rejected; they require module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)` in all library code, never print()/warnings."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In these repos, unittest's `assertLogs` yields a `_LoggingWatcher` namedtuple, not the context object: `len(cm)` is always 2 (tuple fields) and `cm[0]` is the records list, producing misleading failures like `2 != 1`. Always assert on `cm.output` (list of formatted `LEVEL:name:message` strings) or `cm.records`, and for the no-log case use `assertNoLogs(logger, level=...)`.",
+          "evidence": "In this session's logging/test_config.py work, the regression test failed with a misleading `AssertionError: 2 != 1` when the suite ran, while ad-hoc replays of the same code passed. Tracing `unittest._log` in this environment showed `assertLogs.__enter__` returns the `handler.watcher` — a `_LoggingWatcher` namedtuple with fields (records, output) — so `len(caught)` is always 2 (the tuple's fields) and `caught[0]` is the records list, not a record. The fix was asserting on `caught.output` (list of formatted 'LEVEL:name:message' strings), which made the suite pass. Manual one-off replays also behaved differently from the actual suite run, reinforcing that verification must go through the real test path."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line `Risk: low`, `Risk: medium` or `Risk: high` rating how risky the change just made is.",
+          "evidence": "User review feedback after the greet() change: final replies must always end with a `Risk: low|medium|high` line."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "All the user's Python repos use unittest, run from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` (tests/ is a package with __init__.py; see #10 for why APP_ENV=test is required)",
+          "evidence": "User's note this session that tests only run with APP_ENV=test set; lesson #8's bare command failed in this session's billing repo (settings.py raised without APP_ENV)."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When lesson #0 (CHANGELOG bullet) applies but the repo has no CHANGELOG.md, create it first with a `# Changelog` heading and an `## Unreleased` section, then add the bullet under Unreleased.",
+          "evidence": "In this session's greet repo the user asked for the greet() change and lesson #0 required a CHANGELOG bullet, but no CHANGELOG.md existed (find found none); I had to invent its shape, creating it with `# Changelog` / `## Unreleased` / bullet. Next time that decision is already made."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set: `APP_ENV=test python3 -m unittest discover -s tests -t .`",
+          "evidence": "User said after this session's APP_ENV fix: \"in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\" — running the suite without it made billing/settings.py raise."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "A test module that fails at import reports no assertion failures from that module: after fixing an import-time error, re-run the suite before concluding — there may be more, independent failures hidden behind it.",
+          "evidence": "This session: first run of `python -m unittest discover -s tests` in the billing repo showed only ImportError from billing/settings.py (APP_ENV unset). The suite's real assertion bug (tax(10) returned 3.0 due to a stray `+ 1` in billing/tax.py vs expected 2.0) was invisible in that run because both failures were in the same module; I found it only by reading tests/test_tax.py's expectation. Re-running after the settings fix confirmed it independently."
+        },
+        {
+          "id": 12,
+          "kind": "skill",
+          "text": "Testing modules that read env vars at import time: mutate os.environ, `importlib.reload` the module in the test, and in tearDown restore the original value and reload again so later tests see the original state; use assertRaises around reload for invalid values.",
+          "evidence": "This session: tests/test_regression_settings.py needed to prove billing/settings.py no longer raises when APP_ENV is unset and still raises for unknown values. Working pattern used: save/pop APP_ENV in setUp, importlib.reload(settings) inside the test, and in tearDown restore the original value (or pop it) and reload again so other tests see the original state; assertRaises around reload for the invalid-value case. Without the tearDown reload, a reload that raised left ENV='staging' in the module for later tests."
+        },
+        {
+          "id": 13,
+          "kind": "skill",
+          "text": "Before finishing a multi-bug changeset, audit it against lesson #2: each code bug fix needs its own `test_regression_`-named test in tests/ — an existing test that already covers the behavior does not substitute.",
+          "evidence": "This session: the tax.py fix (`+ 1` removal) had coverage only via the pre-existing tests/test_tax.py, so I added no test_regression_-named test for it; lesson #2 requires every bug fix to include one. Found during this review; fixed by adding tests/test_regression_tax.py and a CHANGELOG bullet. Lesson #2 itself is correct — the gap was not auditing each fix in the changeset against it."
+        },
+        {
+          "id": 14,
+          "kind": "prompt",
+          "text": "In the user's repos, every new public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "User review feedback after reverse_words was added to strings/ops.py without type hints or a docstring; they stated this is a repo-wide convention for all new functions."
+        },
+        {
+          "id": 15,
+          "kind": "prompt",
+          "text": "In the user's repos, every error raised by library code must be an AppError subclass from the package's errors.py — never ValueError or other built-in exceptions.",
+          "evidence": "Review feedback: user asked that every error raised by library code in their repos be AppError from the package's errors.py, never ValueError or other built-ins. Verified users/validate.py already raises InvalidAgeError(AppError) from users/errors.py."
+        },
+        {
+          "id": 16,
+          "kind": "skill",
+          "text": "Never run `rg -rn \"pattern\"` — `-r` is rg's `--replace` flag, so `-rn` silently rewrites the printed matches (e.g. showing `def n(age: int)` for `def validate_age(age: int)`), not the real file text. Always use `rg -n` for line-numbered search.",
+          "evidence": "In this session I ran `rg -rn \"validate_age\" --glob '!tests/*' .` while checking for other callers; output came back as `./users/validate.py:def n(age: int) -> bool:` — `rg` had interpreted `-r n` as `--replace n`, mangling the matched lines. The correct call is `rg -n`; the mangled output could easily have been misread as corrupted source."
+        }
+      ]
+    }
+  ]
+}

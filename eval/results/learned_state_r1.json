@@ -1,0 +1,883 @@
+{
+  "version": 17,
+  "next_id": 14,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+      "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+    },
+    {
+      "id": 1,
+      "kind": "memory",
+      "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+      "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+      "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+    },
+    {
+      "id": 3,
+      "kind": "skill",
+      "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+      "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+    },
+    {
+      "id": 4,
+      "kind": "prompt",
+      "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+      "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+      "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+      "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+    },
+    {
+      "id": 7,
+      "kind": "prompt",
+      "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+      "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "Some repos (e.g. greet, strings) have no tests/ directory, so lesson #1's unittest discover command does not apply; check the layout each time and, when there is no tests/, verify changes by importing and calling the function directly (e.g. `python3 -c \"from strings.ops import reverse_words; print(reverse_words('a b'))\"`).",
+      "evidence": "This session's strings repo: `ls` at the root showed only the strings package, no tests/ directory and no CHANGELOG.md, so lesson #1's unittest discover command could not apply; I verified the reverse_words change with direct `python3 -c \"from strings.ops import reverse_words, ...\"` calls. The pattern is not greet-specific."
+    },
+    {
+      "id": 9,
+      "kind": "prompt",
+      "text": "When a test run fails with an environment/settings validation error (e.g. a missing or invalid env var raised at import), re-run with the canonical test command (lesson #1) before editing library code — such validation may be by design, and \"fixing\" it can just paper over a wrong invocation.",
+      "evidence": "This session: I ran `python -m unittest discover -s tests` without APP_ENV, got `RuntimeError: settings: unknown environment None` from billing/settings.py at import, and \"fixed\" it by defaulting APP_ENV to \"dev\". The user then said tests only run with `APP_ENV=test` set — under which the original settings module imported fine and the real bug was only the `+ 1` in billing/tax.py. The settings edit had addressed my wrong invocation, not a code defect."
+    },
+    {
+      "id": 10,
+      "kind": "skill",
+      "text": "To test a module that validates env vars at import time, don't reload it in-process — spawn a subprocess: copy/scrub os.environ, run `[sys.executable, \"-c\", \"import <module>; ...\"]` via subprocess.run(capture_output=True, text=True), and assert on returncode/stdout/stderr.",
+      "evidence": "This session: billing/settings.py reads and validates APP_ENV at import, so its behavior can't be exercised under different env values in-process; the new regression tests in tests/test_tax.py (test_regression_settings_defaults_to_dev_without_app_env, test_regression_settings_rejects_unknown_app_env) spawn `python -c \"import billing.settings\"` via subprocess.run with a scrubbed/modified copy of os.environ, and both pass."
+    },
+    {
+      "id": 11,
+      "kind": "prompt",
+      "text": "Every public function in the user's repos must have full type hints (all parameters and the return type) and a docstring.",
+      "evidence": "Review feedback on the reverse_words task in the strings repo: the user requires every public function to have full type hints (all parameters and return type) and a docstring; I added them to reverse_words and also the pre-existing shout."
+    },
+    {
+      "id": 12,
+      "kind": "prompt",
+      "text": "Never raise ValueError or other built-in exceptions from library code in the user's repos; always raise AppError defined in the package's errors.py (e.g. from users.errors import AppError).",
+      "evidence": "Review feedback on the validate_age change in the users repo: user stated that all errors raised by library code must be AppError from the package's errors.py, never ValueError or other built-ins. The current code already complies, but the rule must be applied to all future changes."
+    },
+    {
+      "id": 13,
+      "kind": "skill",
+      "text": "When creating a new tests/ directory in a plain-Python repo, also create an (empty) `tests/__init__.py` — without it `unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+      "evidence": "This session, in the users repo (which had no tests/ directory): after creating tests/test_validate.py I ran `python3 -m unittest discover -s tests -t .` and it failed with `ImportError: Start directory is not importable: .../tests`. Creating an empty `tests/__init__.py` fixed it and discovery then found both tests. Lesson #1 and #8 don't cover this; the lesson would have avoided the failed test run."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This repo (textkit) is a plain Python package tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`.",
+          "evidence": "This session: located tests/test_slug.py via rg, saw it uses unittest (not pytest), ran `python -m unittest discover -s tests -v` from the repo root and got \"Ran 2 tests ... OK\". No test runner config (pytest.ini, setup.cfg) exists at the root."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This repo (textkit) is a plain Python package tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`.",
+          "evidence": "This session: located tests/test_slug.py via rg, saw it uses unittest (not pytest), ran `python -m unittest discover -s tests -v` from the repo root and got \"Ran 2 tests ... OK\". No test runner config (pytest.ini, setup.cfg) exists at the root."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `python -m unittest discover -s tests`. Don't trust a stored repo name — check the layout each time.",
+          "evidence": "This session ran in a repo with inventory/stock.py and tests/test_stock.py, not textkit; `python -m unittest discover -s tests` from the repo root still ran the tests (\"Ran 3 tests ... OK\"). The repo name in the old lesson was misleading; the command generalizes."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The greet repo has no tests/ directory, so lesson #1's `python -m unittest discover -s tests` does not apply there; verify changes by importing and calling the function directly (e.g. `python3 -c \"from greet.hello import greet; print(greet('World'))\"`).",
+          "evidence": "This session: `rg ... tests/` found nothing and `ls tests` exited 2 (no such directory), so unittest discover could not run; the greet() string change was verified with a direct python3 -c import call instead."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The greet repo has no tests/ directory, so lesson #1's `python -m unittest discover -s tests` does not apply there; verify changes by importing and calling the function directly (e.g. `python3 -c \"from greet.hello import greet; print(greet('World'))\"`).",
+          "evidence": "This session: `rg ... tests/` found nothing and `ls tests` exited 2 (no such directory), so unittest discover could not run; the greet() string change was verified with a direct python3 -c import call instead."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The greet repo has no tests/ directory, so lesson #1's `python -m unittest discover -s tests` does not apply there; verify changes by importing and calling the function directly (e.g. `python3 -c \"from greet.hello import greet; print(greet('World'))\"`).",
+          "evidence": "This session: `rg ... tests/` found nothing and `ls tests` exited 2 (no such directory), so unittest discover could not run; the greet() string change was verified with a direct python3 -c import call instead."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When a test run fails with an environment/settings validation error (e.g. a missing or invalid env var raised at import), re-run with the canonical test command (lesson #1) before editing library code — such validation may be by design, and \"fixing\" it can just paper over a wrong invocation.",
+          "evidence": "This session: I ran `python -m unittest discover -s tests` without APP_ENV, got `RuntimeError: settings: unknown environment None` from billing/settings.py at import, and \"fixed\" it by defaulting APP_ENV to \"dev\". The user then said tests only run with `APP_ENV=test` set — under which the original settings module imported fine and the real bug was only the `+ 1` in billing/tax.py. The settings edit had addressed my wrong invocation, not a code defect."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The greet repo has no tests/ directory, so lesson #1's `python -m unittest discover -s tests` does not apply there; verify changes by importing and calling the function directly (e.g. `python3 -c \"from greet.hello import greet; print(greet('World'))\"`).",
+          "evidence": "This session: `rg ... tests/` found nothing and `ls tests` exited 2 (no such directory), so unittest discover could not run; the greet() string change was verified with a direct python3 -c import call instead."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When a test run fails with an environment/settings validation error (e.g. a missing or invalid env var raised at import), re-run with the canonical test command (lesson #1) before editing library code — such validation may be by design, and \"fixing\" it can just paper over a wrong invocation.",
+          "evidence": "This session: I ran `python -m unittest discover -s tests` without APP_ENV, got `RuntimeError: settings: unknown environment None` from billing/settings.py at import, and \"fixed\" it by defaulting APP_ENV to \"dev\". The user then said tests only run with `APP_ENV=test` set — under which the original settings module imported fine and the real bug was only the `+ 1` in billing/tax.py. The settings edit had addressed my wrong invocation, not a code defect."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test a module that validates env vars at import time, don't reload it in-process — spawn a subprocess: copy/scrub os.environ, run `[sys.executable, \"-c\", \"import <module>; ...\"]` via subprocess.run(capture_output=True, text=True), and assert on returncode/stdout/stderr.",
+          "evidence": "This session: billing/settings.py reads and validates APP_ENV at import, so its behavior can't be exercised under different env values in-process; the new regression tests in tests/test_tax.py (test_regression_settings_defaults_to_dev_without_app_env, test_regression_settings_rejects_unknown_app_env) spawn `python -c \"import billing.settings\"` via subprocess.run with a scrubbed/modified copy of os.environ, and both pass."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "update #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The greet repo has no tests/ directory, so lesson #1's `python -m unittest discover -s tests` does not apply there; verify changes by importing and calling the function directly (e.g. `python3 -c \"from greet.hello import greet; print(greet('World'))\"`).",
+          "evidence": "This session: `rg ... tests/` found nothing and `ls tests` exited 2 (no such directory), so unittest discover could not run; the greet() string change was verified with a direct python3 -c import call instead."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When a test run fails with an environment/settings validation error (e.g. a missing or invalid env var raised at import), re-run with the canonical test command (lesson #1) before editing library code — such validation may be by design, and \"fixing\" it can just paper over a wrong invocation.",
+          "evidence": "This session: I ran `python -m unittest discover -s tests` without APP_ENV, got `RuntimeError: settings: unknown environment None` from billing/settings.py at import, and \"fixed\" it by defaulting APP_ENV to \"dev\". The user then said tests only run with `APP_ENV=test` set — under which the original settings module imported fine and the real bug was only the `+ 1` in billing/tax.py. The settings edit had addressed my wrong invocation, not a code defect."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test a module that validates env vars at import time, don't reload it in-process — spawn a subprocess: copy/scrub os.environ, run `[sys.executable, \"-c\", \"import <module>; ...\"]` via subprocess.run(capture_output=True, text=True), and assert on returncode/stdout/stderr.",
+          "evidence": "This session: billing/settings.py reads and validates APP_ENV at import, so its behavior can't be exercised under different env values in-process; the new regression tests in tests/test_tax.py (test_regression_settings_defaults_to_dev_without_app_env, test_regression_settings_rejects_unknown_app_env) spawn `python -c \"import billing.settings\"` via subprocess.run with a scrubbed/modified copy of os.environ, and both pass."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "Every public function in the user's repos must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task in the strings repo: the user requires every public function to have full type hints (all parameters and return type) and a docstring; I added them to reverse_words and also the pre-existing shout."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "add #12",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "Some repos (e.g. greet, strings) have no tests/ directory, so lesson #1's unittest discover command does not apply; check the layout each time and, when there is no tests/, verify changes by importing and calling the function directly (e.g. `python3 -c \"from strings.ops import reverse_words; print(reverse_words('a b'))\"`).",
+          "evidence": "This session's strings repo: `ls` at the root showed only the strings package, no tests/ directory and no CHANGELOG.md, so lesson #1's unittest discover command could not apply; I verified the reverse_words change with direct `python3 -c \"from strings.ops import reverse_words, ...\"` calls. The pattern is not greet-specific."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When a test run fails with an environment/settings validation error (e.g. a missing or invalid env var raised at import), re-run with the canonical test command (lesson #1) before editing library code — such validation may be by design, and \"fixing\" it can just paper over a wrong invocation.",
+          "evidence": "This session: I ran `python -m unittest discover -s tests` without APP_ENV, got `RuntimeError: settings: unknown environment None` from billing/settings.py at import, and \"fixed\" it by defaulting APP_ENV to \"dev\". The user then said tests only run with `APP_ENV=test` set — under which the original settings module imported fine and the real bug was only the `+ 1` in billing/tax.py. The settings edit had addressed my wrong invocation, not a code defect."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test a module that validates env vars at import time, don't reload it in-process — spawn a subprocess: copy/scrub os.environ, run `[sys.executable, \"-c\", \"import <module>; ...\"]` via subprocess.run(capture_output=True, text=True), and assert on returncode/stdout/stderr.",
+          "evidence": "This session: billing/settings.py reads and validates APP_ENV at import, so its behavior can't be exercised under different env values in-process; the new regression tests in tests/test_tax.py (test_regression_settings_defaults_to_dev_without_app_env, test_regression_settings_rejects_unknown_app_env) spawn `python -c \"import billing.settings\"` via subprocess.run with a scrubbed/modified copy of os.environ, and both pass."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "Every public function in the user's repos must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task in the strings repo: the user requires every public function to have full type hints (all parameters and return type) and a docstring; I added them to reverse_words and also the pre-existing shout."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #13",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Do this for each change as part of the change itself, including bug fixes, features and refactors.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "The user's repos are plain Python packages tested with stdlib unittest; run tests from the repo root with `APP_ENV=test python3 -m unittest discover -s tests -t .` — tests only pass with APP_ENV=test set (settings modules may validate it). Don't trust a stored repo name — check the layout each time.",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with APP_ENV=test set, e.g. APP_ENV=test python3 -m unittest discover -s tests -t . Remember this for next time.\""
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`.",
+          "evidence": "User instruction after review of the Stock.remove negative-stock fix (this session): every bug fix must come with a regression test in tests/ named test_regression_*. Added such tests for the fix; user asked for this to hold in all future fixes."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When applying the CHANGELOG rule, check first whether CHANGELOG.md exists (`rg -n \"Unreleased\" CHANGELOG.md`); if it doesn't, create it with a `# Changelog` header and an `## Unreleased` section, then add the bullet.",
+          "evidence": "This session: `rg CHANGELOG.md` at the repo root found nothing, so per lesson #0 I had to create CHANGELOG.md from scratch with a `# Changelog` header and an `## Unreleased` section before adding the bullet for the Stock.remove fix."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Start every new source file you create with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "Review feedback on the shapes/circle.py change: every new source file must start with an Apache-2.0 SPDX header; I had to add it retroactively to circle.py."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Library code never uses print() or warnings.warn(); emit warnings through a module-level `logger = logging.getLogger(__name__)` and `logger.warning(...)`.",
+          "evidence": "Reviewer feedback on loader/config.py: the missing-file warning was implemented with warnings.warn(); reviewer required logging.getLogger(__name__).logger.warning(...) instead."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When changing library code from `warnings.warn()` to the `logging.getLogger(__name__).warning(...)` pattern (per lesson #5), also switch the tests from `assertWarns`/`assertLogs`-style to `assertLogs(\"module.name\", level=\"WARNING\")` and update the CHANGELOG bullet wording; the code and tests must move together.",
+          "evidence": "In this session loader/config.py was first implemented with warnings.warn(..., UserWarning) and the test asserted with assertWarns. After the reviewer required the logging pattern, the test also had to be rewritten from assertWarns to assertLogs(\"loader.config\", level=\"WARNING\") — the two must move together."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "Always end final task replies with a last line rating the change's risk: `Risk: low`, `Risk: medium`, or `Risk: high`.",
+          "evidence": "User review feedback after the greet() string change: every final reply must end with a `Risk: low|medium|high` line, starting now."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "Some repos (e.g. greet, strings) have no tests/ directory, so lesson #1's unittest discover command does not apply; check the layout each time and, when there is no tests/, verify changes by importing and calling the function directly (e.g. `python3 -c \"from strings.ops import reverse_words; print(reverse_words('a b'))\"`).",
+          "evidence": "This session's strings repo: `ls` at the root showed only the strings package, no tests/ directory and no CHANGELOG.md, so lesson #1's unittest discover command could not apply; I verified the reverse_words change with direct `python3 -c \"from strings.ops import reverse_words, ...\"` calls. The pattern is not greet-specific."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When a test run fails with an environment/settings validation error (e.g. a missing or invalid env var raised at import), re-run with the canonical test command (lesson #1) before editing library code — such validation may be by design, and \"fixing\" it can just paper over a wrong invocation.",
+          "evidence": "This session: I ran `python -m unittest discover -s tests` without APP_ENV, got `RuntimeError: settings: unknown environment None` from billing/settings.py at import, and \"fixed\" it by defaulting APP_ENV to \"dev\". The user then said tests only run with `APP_ENV=test` set — under which the original settings module imported fine and the real bug was only the `+ 1` in billing/tax.py. The settings edit had addressed my wrong invocation, not a code defect."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test a module that validates env vars at import time, don't reload it in-process — spawn a subprocess: copy/scrub os.environ, run `[sys.executable, \"-c\", \"import <module>; ...\"]` via subprocess.run(capture_output=True, text=True), and assert on returncode/stdout/stderr.",
+          "evidence": "This session: billing/settings.py reads and validates APP_ENV at import, so its behavior can't be exercised under different env values in-process; the new regression tests in tests/test_tax.py (test_regression_settings_defaults_to_dev_without_app_env, test_regression_settings_rejects_unknown_app_env) spawn `python -c \"import billing.settings\"` via subprocess.run with a scrubbed/modified copy of os.environ, and both pass."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "Every public function in the user's repos must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task in the strings repo: the user requires every public function to have full type hints (all parameters and return type) and a docstring; I added them to reverse_words and also the pre-existing shout."
+        },
+        {
+          "id": 12,
+          "kind": "prompt",
+          "text": "Never raise ValueError or other built-in exceptions from library code in the user's repos; always raise AppError defined in the package's errors.py (e.g. from users.errors import AppError).",
+          "evidence": "Review feedback on the validate_age change in the users repo: user stated that all errors raised by library code must be AppError from the package's errors.py, never ValueError or other built-ins. The current code already complies, but the rule must be applied to all future changes."
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,8 @@ use serde::{Deserialize, Serialize};
 
 const NAME: &str = "continual";
 const STATE_FILE: &str = "continual/state.json";
+/// Overrides where the state is kept: a file path, such as one per eval run.
+const STATE_ENV: &str = "CONTINUAL_STATE";
 /// How many earlier versions the history keeps.
 const HISTORY: usize = 50;
 
@@ -153,7 +155,10 @@ struct Harness {
 impl Harness {
     fn save(&self, data: &PluginData) -> Result<(), String> {
         let bytes = serde_json::to_vec_pretty(&self.state).map_err(|e| e.to_string())?;
-        data.user.write_file(STATE_FILE, &bytes).map_err(|e| e.to_string())
+        match std::env::var_os(STATE_ENV) {
+            Some(path) => std::fs::write(path, bytes).map_err(|e| e.to_string()),
+            None => data.user.write_file(STATE_FILE, &bytes).map_err(|e| e.to_string()),
+        }
     }
 }
 
@@ -164,7 +169,11 @@ fn load(mut harness: ResMut<Harness>, data: Option<Res<PluginData>>, mut notices
         return;
     }
     harness.loaded = true;
-    match data.user.read_file(STATE_FILE) {
+    let read = match std::env::var_os(STATE_ENV) {
+        Some(path) => std::fs::read(path),
+        None => data.user.read_file(STATE_FILE),
+    };
+    match read {
         Ok(bytes) => match serde_json::from_slice(&bytes) {
             Ok(state) => harness.state = state,
             Err(e) => {

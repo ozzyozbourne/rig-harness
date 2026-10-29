@@ -1,0 +1,1015 @@
+{
+  "version": 19,
+  "next_id": 15,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+      "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+      "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+      "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+    },
+    {
+      "id": 3,
+      "kind": "prompt",
+      "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+      "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+    },
+    {
+      "id": 4,
+      "kind": "skill",
+      "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+      "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+      "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and a tests/ package with `tests/__init__.py` plus regression tests in tests/ (per lessons #0 and #2) — without `__init__.py`, `unittest discover -s tests -t .` fails with \"Start directory is not importable\" — then verify with the suite-discovery command.",
+      "evidence": "In this strings repo (reverse_words task), I created CHANGELOG.md and tests/test_ops.py per lesson #6, but the first `APP_ENV=test python3 -m unittest discover -s tests -t .` run failed with `ImportError: Start directory is not importable: .../tests` because the new tests/ package had no `__init__.py`. Adding `tests/__init__.py` fixed it and the 3-test suite ran OK. Lesson #6 should say to create tests/__init__.py when creating the tests/ directory."
+    },
+    {
+      "id": 7,
+      "kind": "prompt",
+      "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+      "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+      "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+    },
+    {
+      "id": 9,
+      "kind": "skill",
+      "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+      "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+    },
+    {
+      "id": 10,
+      "kind": "skill",
+      "text": "To test env-validated settings modules in-process, `importlib.reload` the module after mutating `os.environ` (pop the variable for the default path, set an invalid value for the rejection path), and restore the env plus reload in a `finally` so later tests see clean state.",
+      "evidence": "tests/test_regression.py this session: `test_regression_settings_defaults_to_dev_without_app_env` and `test_regression_settings_rejects_unknown_env` passed by importlib.reload(billing.settings) after popping/setting os.environ[\"APP_ENV\"], restoring the env and reloading in `finally`; the 4-test suite ran OK with APP_ENV=test."
+    },
+    {
+      "id": 11,
+      "kind": "prompt",
+      "text": "In all the user's repos, every public function must have full type hints (all parameters and the return type) and a docstring.",
+      "evidence": "Review feedback on the reverse_words task: every public function must have full type hints (all parameters and return type) and a docstring; I applied this to strings/ops.py and must follow it for all future new functions."
+    },
+    {
+      "id": 12,
+      "kind": "prompt",
+      "text": "In the user's repos, library code must raise `AppError` from the package's `errors.py` for every error it raises — never `ValueError` or other built-in exceptions.",
+      "evidence": "User review feedback: validate_age initially raised ValueError; user corrected that all library-code errors must be AppError from the package's errors.py. Fixed in users/validate.py and added regression test."
+    },
+    {
+      "id": 13,
+      "kind": "skill",
+      "text": "When a later change in the same turn supersedes an earlier `## Unreleased` bullet (e.g. an exception type swapped after review), update the original bullet in place instead of appending a contradicting one, so the changelog states the final behavior once.",
+      "evidence": "This session: when the user's review changed validate_age from ValueError to AppError, I appended a second Unreleased bullet instead of updating the first, leaving CHANGELOG.md with a stale 'raises ValueError' bullet contradicting the new one. Fixed during this review by merging the two bullets into one accurate entry."
+    },
+    {
+      "id": 14,
+      "kind": "memory",
+      "text": "In the users repo, the package already ships `users/errors.py` defining `class AppError(Exception)`; import it (`from users.errors import AppError`) rather than creating a new errors module or error class.",
+      "evidence": "This session: `rg -n \"AppError\"` in the users repo showed users/errors.py already existed with `class AppError(Exception)` — I had to discover it before importing; I did not create a new errors.py or a new error class."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "In this repo (textkit), check Python changes by running the suite from the repo root with `python -m unittest discover tests`; the tests live in tests/ and import the top-level `textkit` package.",
+          "evidence": "Session only ran the suite successfully after explicitly passing the start dir: `python -m unittest discover tests -v` reported `test_lowercase (test_slug.T...)` and `test_words` — 2 tests OK — after the slugify fix. Tests live in tests/, the package under test is textkit/."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "In this repo (textkit), check Python changes by running the suite from the repo root with `python -m unittest discover tests`; the tests live in tests/ and import the top-level `textkit` package.",
+          "evidence": "Session only ran the suite successfully after explicitly passing the start dir: `python -m unittest discover tests -v` reported `test_lowercase (test_slug.T...)` and `test_words` — 2 tests OK — after the slugify fix. Tests live in tests/, the package under test is textkit/."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "In this repo (textkit), check Python changes by running the suite from the repo root with `python -m unittest discover tests`; tests live in tests/ and import several top-level packages (`textkit`, `inventory`).",
+          "evidence": "Lesson #1 claimed the package under test is `textkit/` only, but this session's `python -m unittest discover tests -v` run discovered `test_stock.T.test_*` where tests/test_stock.py does `from inventory.stock import Stock` — the repo's tests also cover the `inventory` package, and discovery from the repo root covers both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "In this repo (textkit), check Python changes by running the suite from the repo root with `python -m unittest discover tests`; tests live in tests/ and import several top-level packages (`textkit`, `inventory`).",
+          "evidence": "Lesson #1 claimed the package under test is `textkit/` only, but this session's `python -m unittest discover tests -v` run discovered `test_stock.T.test_*` where tests/test_stock.py does `from inventory.stock import Stock` — the repo's tests also cover the `inventory` package, and discovery from the repo root covers both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "In this repo (textkit), check Python changes by running the suite from the repo root with `python -m unittest discover tests`; tests live in tests/ and import several top-level packages (`textkit`, `inventory`).",
+          "evidence": "Lesson #1 claimed the package under test is `textkit/` only, but this session's `python -m unittest discover tests -v` run discovered `test_stock.T.test_*` where tests/test_stock.py does `from inventory.stock import Stock` — the repo's tests also cover the `inventory` package, and discovery from the repo root covers both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "In this repo (textkit), check Python changes by running the suite from the repo root with `python -m unittest discover tests`; tests live in tests/ and import several top-level packages (`textkit`, `inventory`).",
+          "evidence": "Lesson #1 claimed the package under test is `textkit/` only, but this session's `python -m unittest discover tests -v` run discovered `test_stock.T.test_*` where tests/test_stock.py does `from inventory.stock import Stock` — the repo's tests also cover the `inventory` package, and discovery from the repo root covers both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `python -m unittest discover tests` from the repo root; the suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "This session ran in a `loader`-package repo (no textkit/ or inventory/), and `python -m unittest discover tests -v` from the repo root worked there too, discovering test_config.ConfigLoadTest.test_regression_* — so the same command applies across the user's repos, not just textkit."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `python -m unittest discover tests` from the repo root; the suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "This session ran in a `loader`-package repo (no textkit/ or inventory/), and `python -m unittest discover tests -v` from the repo root worked there too, discovering test_config.ConfigLoadTest.test_regression_* — so the same command applies across the user's repos, not just textkit."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `python -m unittest discover tests` from the repo root; the suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "This session ran in a `loader`-package repo (no textkit/ or inventory/), and `python -m unittest discover tests -v` from the repo root worked there too, discovering test_config.ConfigLoadTest.test_regression_* — so the same command applies across the user's repos, not just textkit."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+          "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+          "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test env-validated settings modules in-process, `importlib.reload` the module after mutating `os.environ` (pop the variable for the default path, set an invalid value for the rejection path), and restore the env plus reload in a `finally` so later tests see clean state.",
+          "evidence": "tests/test_regression.py this session: `test_regression_settings_defaults_to_dev_without_app_env` and `test_regression_settings_rejects_unknown_env` passed by importlib.reload(billing.settings) after popping/setting os.environ[\"APP_ENV\"], restoring the env and reloading in `finally`; the 4-test suite ran OK with APP_ENV=test."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "update #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and regression tests in tests/ (per lesson #0 and #2), then verify with the suite-discovery command.",
+          "evidence": "In this session's loader repo, CHANGELOG.md and tests/ did not exist yet (`ls -R` showed only loader/). I had to decide on the spot to create both — CHANGELOG.md starting with `# Changelog` and an `## Unreleased` section, and tests/test_config.py — to satisfy lessons #0 and #2, and verify with the unittest discovery command."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+          "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test env-validated settings modules in-process, `importlib.reload` the module after mutating `os.environ` (pop the variable for the default path, set an invalid value for the rejection path), and restore the env plus reload in a `finally` so later tests see clean state.",
+          "evidence": "tests/test_regression.py this session: `test_regression_settings_defaults_to_dev_without_app_env` and `test_regression_settings_rejects_unknown_env` passed by importlib.reload(billing.settings) after popping/setting os.environ[\"APP_ENV\"], restoring the env and reloading in `finally`; the 4-test suite ran OK with APP_ENV=test."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "In all the user's repos, every public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task: every public function must have full type hints (all parameters and return type) and a docstring; I applied this to strings/ops.py and must follow it for all future new functions."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #12",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and a tests/ package with `tests/__init__.py` plus regression tests in tests/ (per lessons #0 and #2) — without `__init__.py`, `unittest discover -s tests -t .` fails with \"Start directory is not importable\" — then verify with the suite-discovery command.",
+          "evidence": "In this strings repo (reverse_words task), I created CHANGELOG.md and tests/test_ops.py per lesson #6, but the first `APP_ENV=test python3 -m unittest discover -s tests -t .` run failed with `ImportError: Start directory is not importable: .../tests` because the new tests/ package had no `__init__.py`. Adding `tests/__init__.py` fixed it and the 3-test suite ran OK. Lesson #6 should say to create tests/__init__.py when creating the tests/ directory."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+          "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test env-validated settings modules in-process, `importlib.reload` the module after mutating `os.environ` (pop the variable for the default path, set an invalid value for the rejection path), and restore the env plus reload in a `finally` so later tests see clean state.",
+          "evidence": "tests/test_regression.py this session: `test_regression_settings_defaults_to_dev_without_app_env` and `test_regression_settings_rejects_unknown_env` passed by importlib.reload(billing.settings) after popping/setting os.environ[\"APP_ENV\"], restoring the env and reloading in `finally`; the 4-test suite ran OK with APP_ENV=test."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "In all the user's repos, every public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task: every public function must have full type hints (all parameters and return type) and a docstring; I applied this to strings/ops.py and must follow it for all future new functions."
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "reason": "add #13",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and a tests/ package with `tests/__init__.py` plus regression tests in tests/ (per lessons #0 and #2) — without `__init__.py`, `unittest discover -s tests -t .` fails with \"Start directory is not importable\" — then verify with the suite-discovery command.",
+          "evidence": "In this strings repo (reverse_words task), I created CHANGELOG.md and tests/test_ops.py per lesson #6, but the first `APP_ENV=test python3 -m unittest discover -s tests -t .` run failed with `ImportError: Start directory is not importable: .../tests` because the new tests/ package had no `__init__.py`. Adding `tests/__init__.py` fixed it and the 3-test suite ran OK. Lesson #6 should say to create tests/__init__.py when creating the tests/ directory."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+          "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test env-validated settings modules in-process, `importlib.reload` the module after mutating `os.environ` (pop the variable for the default path, set an invalid value for the rejection path), and restore the env plus reload in a `finally` so later tests see clean state.",
+          "evidence": "tests/test_regression.py this session: `test_regression_settings_defaults_to_dev_without_app_env` and `test_regression_settings_rejects_unknown_env` passed by importlib.reload(billing.settings) after popping/setting os.environ[\"APP_ENV\"], restoring the env and reloading in `finally`; the 4-test suite ran OK with APP_ENV=test."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "In all the user's repos, every public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task: every public function must have full type hints (all parameters and return type) and a docstring; I applied this to strings/ops.py and must follow it for all future new functions."
+        },
+        {
+          "id": 12,
+          "kind": "prompt",
+          "text": "In the user's repos, library code must raise `AppError` from the package's `errors.py` for every error it raises — never `ValueError` or other built-in exceptions.",
+          "evidence": "User review feedback: validate_age initially raised ValueError; user corrected that all library-code errors must be AppError from the package's errors.py. Fixed in users/validate.py and added regression test."
+        }
+      ]
+    },
+    {
+      "version": 18,
+      "reason": "add #14",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In all the user's repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md; include this whenever a turn makes changes.",
+          "evidence": "User review feedback after the slugify fix: \"in all my repos, every change must add a bullet describing it under `## Unreleased` in CHANGELOG.md. Please do that now, and keep doing it in all future work.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Check Python changes in the user's repos that have a tests/ directory by running `APP_ENV=test python3 -m unittest discover -s tests -t .` from the repo root — tests only run with APP_ENV=test set; without it, env-validated settings modules fail to import. The suite may import several top-level packages (e.g. `textkit`, `inventory`, `loader`).",
+          "evidence": "User instruction this session: \"in all my repos, tests only run with `APP_ENV=test` set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`\". Backed by this session's failure: the first run of `python -m unittest discover tests` failed at import (`billing.settings` raised `unknown environment None` because APP_ENV was unset)."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "In all the user's repos, every bug fix must come with a regression test in tests/, in a test method whose name starts with `test_regression_`, added in the same turn as the fix.",
+          "evidence": "User's review feedback on the Stock.remove negative-count fix in textkit (2026 session): they asked for regression tests in tests/ named test_regression_* for every bug fix, in all their repos; I added tests/test_stock.py#test_regression_* covering the ValueError and unchanged-count behavior."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Start every new source file you create in the user's repos with the line `# SPDX-License-Identifier: Apache-2.0` as its first line.",
+          "evidence": "User review feedback in this session: every new source file in their repos must start with `# SPDX-License-Identifier: Apache-2.0`; I had to retrofit it onto shapes/circle.py created without it."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "In the shapes repo (not textkit): there is no tests/ suite, so check Python changes by running the touched functions with quick `python -c` assertions from the repo root; skill #1's `python -m unittest discover tests` does not apply here.",
+          "evidence": "This session is in a `shapes` repo (/tmp/eval-out/runs/learn/r0/spdx_header), not textkit: `ls tests/` returned nothing (exit 2), and I verified new `shapes/circle.py` successfully with inline `python -c` assertions (`area(1) == math.pi`) instead of the textkit suite-discovery command from skill #1."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "In the user's repos, library code never uses print() or `warnings.warn`; report warnings through a module-level `logger = logging.getLogger(__name__)` with `logger.warning(...)`.",
+          "evidence": "User corrected my use of `warnings.warn` in loader/config.py: \"library code in my repos never uses print(). Warnings go through a module-level logger = logging.getLogger(__name__) and logger.warning(...). Change it to that now, and follow this rule from now on.\""
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "When a user repo has no CHANGELOG.md or tests/ directory yet, create them rather than skipping the rules: CHANGELOG.md as `# Changelog` with a `## Unreleased` heading, and a tests/ package with `tests/__init__.py` plus regression tests in tests/ (per lessons #0 and #2) — without `__init__.py`, `unittest discover -s tests -t .` fails with \"Start directory is not importable\" — then verify with the suite-discovery command.",
+          "evidence": "In this strings repo (reverse_words task), I created CHANGELOG.md and tests/test_ops.py per lesson #6, but the first `APP_ENV=test python3 -m unittest discover -s tests -t .` run failed with `ImportError: Start directory is not importable: .../tests` because the new tests/ package had no `__init__.py`. Adding `tests/__init__.py` fixed it and the 3-test suite ran OK. Lesson #6 should say to create tests/__init__.py when creating the tests/ directory."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply of a finished task with a last line exactly `Risk: low`, `Risk: medium` or `Risk: high`, rating how risky the change is.",
+          "evidence": "User review feedback after the greet change: they asked for a `Risk: ...` line now and in every future final reply."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "In all the user's repos, tests only run with `APP_ENV=test` set; also set it for ad-hoc runs (quick `python -c`, subprocesses) that import package code, since env-validated settings modules raise when APP_ENV is missing.",
+          "evidence": "User instruction this session: \"Note for the future: in all my repos, tests only run with APP_ENV=test set, e.g. `APP_ENV=test python3 -m unittest discover -s tests -t .`.\" Observed this session: the suite errored at import (`RuntimeError: settings: unknown environment None`) when APP_ENV was unset."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When a suite failure is an import error from an env-validated settings module (e.g. \"unknown environment None\"), treat it as a missing runner environment, not a code bug: re-run the suite under the user's standard invocation (APP_ENV=test, per skill #1) before touching validation code, and fix only failures that still occur then.",
+          "evidence": "This session: I ran `python -m unittest discover tests` with no APP_ENV, got `RuntimeError: settings: unknown environment None` from billing.settings at import, and \"fixed\" it by defaulting APP_ENV to \"dev\" in settings.py. The user then stated tests only run with APP_ENV=test set; under that env the only genuine failure was tax(10)==3.0 vs 2.0 (stray `+ 1` in tax.py), so the settings default addressed a non-bug caused by my own non-standard invocation and weakened intended env validation."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "To test env-validated settings modules in-process, `importlib.reload` the module after mutating `os.environ` (pop the variable for the default path, set an invalid value for the rejection path), and restore the env plus reload in a `finally` so later tests see clean state.",
+          "evidence": "tests/test_regression.py this session: `test_regression_settings_defaults_to_dev_without_app_env` and `test_regression_settings_rejects_unknown_env` passed by importlib.reload(billing.settings) after popping/setting os.environ[\"APP_ENV\"], restoring the env and reloading in `finally`; the 4-test suite ran OK with APP_ENV=test."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "In all the user's repos, every public function must have full type hints (all parameters and the return type) and a docstring.",
+          "evidence": "Review feedback on the reverse_words task: every public function must have full type hints (all parameters and return type) and a docstring; I applied this to strings/ops.py and must follow it for all future new functions."
+        },
+        {
+          "id": 12,
+          "kind": "prompt",
+          "text": "In the user's repos, library code must raise `AppError` from the package's `errors.py` for every error it raises — never `ValueError` or other built-in exceptions.",
+          "evidence": "User review feedback: validate_age initially raised ValueError; user corrected that all library-code errors must be AppError from the package's errors.py. Fixed in users/validate.py and added regression test."
+        },
+        {
+          "id": 13,
+          "kind": "skill",
+          "text": "When a later change in the same turn supersedes an earlier `## Unreleased` bullet (e.g. an exception type swapped after review), update the original bullet in place instead of appending a contradicting one, so the changelog states the final behavior once.",
+          "evidence": "This session: when the user's review changed validate_age from ValueError to AppError, I appended a second Unreleased bullet instead of updating the first, leaving CHANGELOG.md with a stale 'raises ValueError' bullet contradicting the new one. Fixed during this review by merging the two bullets into one accurate entry."
+        }
+      ]
+    }
+  ]
+}

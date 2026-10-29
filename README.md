@@ -39,6 +39,29 @@ rig -m openrouter/z-ai/glm-5.3-flash
 `plugins.toml` is rig's default list plus `EffectLogPlugin`, `continual` and
 `utc_clock`.
 
+## Evals (GLM-5.3-Flash, 3 repeats)
+
+**Level 1, continual learning** (`eval/run.py`): 8 task families, each with a
+hidden team rule. Baseline runs each test task with empty memory; continual
+first runs learning episodes in other repos (task, reviewer feedback stating
+the rule, `/refine`), then the test task in a new repo that never mentions it.
+
+| | Baseline | Continual |
+|---|---|---|
+| Tasks solved | 24/24 | 24/24 |
+| Rule followed | 3/21 | 20/21 |
+| `APP_ENV` used on first test run | 0/3 | 3/3 |
+| Avg tool calls | 6.1 | 9.1 |
+
+**Level 2, self-modification** (`eval/self_modify.py`): the agent wrote,
+built and reloaded a plugin for `sha256_file`, `count_lines` and
+`list_todos`, and repaired a planted broken plugin; a fresh session's tool
+output was correct in 4/4.
+
+Raw results are in `eval/results/`. `eval/selftest.py` checks that every
+grader fails the untouched repo and passes a reference fix. Set
+`CONTINUAL_STATE=<file>` to give a run its own learned state.
+
 ## Caveats
 
 - Plugin code is fully trusted and the agent can edit `plugins.toml`: run it
