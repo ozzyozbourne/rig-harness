@@ -35,6 +35,10 @@ source rig-env.sh
 rig -m openrouter/z-ai/glm-5.3-flash
 ```
 
+`rig-env.sh` limits cargo to 2 jobs with no incremental cache, so a clean
+build peaks near 1.4 GB of RAM (about 12 minutes on 4 cores; plugin edits
+rebuild in seconds). Override `CARGO_BUILD_JOBS` on bigger machines.
+
 `RIG_HOME` defaults to `~/.rig` and `RIG_SOURCE` (the rig checkout) to `~/rig`.
 `plugins.toml` is rig's default list plus `EffectLogPlugin`, `continual` and
 `utc_clock`.
