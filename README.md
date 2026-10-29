@@ -66,6 +66,8 @@ Raw results are in `eval/results/`. `eval/selftest.py` checks that every
 grader fails the untouched repo and passes a reference fix. Set
 `CONTINUAL_STATE=<file>` to give a run its own learned state.
 
+A summary of Experiments A–C (DeepSeek V4.1 Flash) is in [EXPERIMENTS.md](EXPERIMENTS.md).
+
 ## Experiment B: the agent manages its own context (DeepSeek V4.1 Flash)
 
 `plugins/ctx_mode` picks how context is kept under `CTX_BUDGET` (32K) per
