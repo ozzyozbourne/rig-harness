@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "next_id": 2,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "memory",
+      "text": "Project test_calc.py/calc.py: run tests with `python3 test_calc.py` (no pytest installed); plain assert-style test scripts.",
+      "evidence": "Ran test_calc.py in /tmp/cl-demo: calc.py's add() computed a-b, failing the assert; fixed to a+b and the test passed. There is no pytest in the environment (tests run as plain scripts that assert and print)."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "The `utc_clock` plugin (at /home/user/.rig/plugins/utc_clock) adds the `utc_now` tool: current UTC time as RFC 3339 text from std::time::SystemTime, no dependencies. To change or extend it, edit its src/lib.rs, check with `cd /home/user/.rig/plugins/utc_clock && cargo test` and `RIG_HOME=/home/user/.rig rig plugin check --build`, then call harness_reload.",
+      "evidence": "Created the utc_clock plugin this session: `rig plugin new utc_clock`, replaced the generated demo command in /home/user/.rig/plugins/utc_clock/src/lib.rs with a plain `app.add_tool_with(UtcNow, ...)` tool (no-args, `args_schema::<NoArgs>()`, footprint `Touches::Reads(Scope::Anything)`), verified with `cargo test` in the crate, then `RIG_HOME=/home/user/.rig rig plugin check --build` and harness_reload."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "Project test_calc.py/calc.py: run tests with `python3 test_calc.py` (no pytest installed); plain assert-style test scripts.",
+          "evidence": "Ran test_calc.py in /tmp/cl-demo: calc.py's add() computed a-b, failing the assert; fixed to a+b and the test passed. There is no pytest in the environment (tests run as plain scripts that assert and print)."
+        }
+      ]
+    }
+  ]
+}

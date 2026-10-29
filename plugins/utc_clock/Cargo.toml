@@ -1,0 +1,40 @@
+[package]
+name = "utc_clock"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Its own workspace: the agent builds it as a dependency, from RIG_HOME.
+[workspace]
+
+[dependencies]
+# Everything a plugin uses: Bevy's app and ECS (`rig_harness::prelude`) and the
+# kernel (`rig_harness::rig_ecs`). Another plugin's types come from its
+# crate, at the same version: the terminal view's panels from rig-tui (with
+# `rig_tui::ratatui`), what agents do from rig-basics. Add rig-basics with
+# `default-features = false` unless this plugin draws in the terminal view:
+# its default `tui` feature builds rig-tui. The agent builds every plugin
+# with its own rig crates. A Bevy crate, such as `bevy` for a window, must
+# be at exactly =0.20.0.
+rig-harness = "0.46.0-rc.1"
+# Bevy's derives (`Component`, `Resource`, `Message`, `SystemSet`, `Reflect`)
+# name the crate they expand to from this file, so those are direct dependencies.
+bevy_ecs = { version = "=0.20.0", default-features = false }
+bevy_reflect = { version = "=0.20.0", default-features = false }
+# A tool's arguments, and its parameters derived from them.
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The agent is built from this rig checkout (RIG_SOURCE); this crate on its
+# own is too. The agent project patches these and the plugin crates it uses.
+[patch.crates-io]
+rig-core = { path = "@RIG_SOURCE@/crates/rig-core" }
+rig-ecs = { path = "@RIG_SOURCE@/crates/rig-ecs" }
+rig-harness = { path = "@RIG_SOURCE@/crates/rig-harness" }
+rig-harness-protocol = { path = "@RIG_SOURCE@/crates/rig-harness-protocol" }
+rig-http = { path = "@RIG_SOURCE@/crates/rig-http" }
+rig-memory = { path = "@RIG_SOURCE@/crates/rig-memory" }
+rig-tools = { path = "@RIG_SOURCE@/crates/rig-tools" }
+# Another rig crate this crate depends on, such as rig-tui, needs a line
+# here too when this crate is built on its own.
