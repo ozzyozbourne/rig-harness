@@ -14,6 +14,7 @@ import argparse
 import concurrent.futures as cf
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -58,6 +59,8 @@ def rig(repo, prompt, state, session=None, timeout=420):
             pass
     exit_ = next((e for e in events if e.get("type") == "exit"), {})
     calls = [e for e in events if e.get("type") == "tool_call"]
+    failed = sum(1 for e in events if e.get("type") == "tool_result" and e.get("name") == "shell"
+                 and re.search(r"\[exit code [1-9]\d*\]", str(e.get("output", ""))))
     usage = exit_.get("usage") or {}
     return {
         "code": exit_.get("code"),
@@ -65,6 +68,7 @@ def rig(repo, prompt, state, session=None, timeout=420):
         "answer": exit_.get("answer") or "",
         "error": exit_.get("error"),
         "tool_calls": [{"name": c.get("name"), "args": c.get("args")} for c in calls],
+        "failed_commands": failed,
         "cost": usage.get("cost", 0.0),
         "tokens": (usage.get("tokens") or {}).get("total_tokens", 0),
         "seconds": round(time.time() - start, 1),

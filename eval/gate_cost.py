@@ -1,0 +1,134 @@
+"""Cost check for the gate: catch lessons that cost time without failing a check.
+
+  EVAL_MODEL=opencode-go/deepseek-v4.1-flash python3 eval/gate_cost.py --out /tmp/gate-cost
+  python3 eval/gate_cost.py --report /tmp/gate-cost
+
+Bases are the 5 clean memories of Experiment A's ungated arm. Each base runs
+the regression suite twice (3 held-out tasks + CI of all eight learning
+tasks), recording per item whether it passed, its failed shell commands
+(`[exit code N]`, N > 0) and its tool calls. Each candidate (no_env, plus the
+two good lessons as controls) runs the suite once, then once more.
+
+The rule, fixed before the run:
+- pass check: the strict gate of eval/experiment_a.py;
+- cost check: an item is slower when its failed commands exceed the worse of
+  the base's two runs by more than SLACK. A candidate is rejected when some
+  item is slower in both of its runs, or when its suite total of failed
+  commands exceeds the worse base total by more than TOTAL_SLACK in both runs.
+"""
+
+import argparse
+import concurrent.futures as cf
+import glob
+import json
+import os
+import shutil
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import experiment_a as ea  # noqa: E402
+from gate_test import CANDIDATES, FAMS, HERE  # noqa: E402
+from run import make_repo, rig  # noqa: E402
+from tasks import FAMILIES, py  # noqa: E402
+
+SLACK = 1
+TOTAL_SLACK = 2
+TESTED = ["no_env", "verify", "read_first"]
+
+
+def measured(out, tag, key, state):
+    """One suite item with a copy of `state`: whether it passed, and what it cost."""
+    name = key[3:] if key.startswith("ci:") else key
+    repo = os.path.join(out, "runs", tag, name)
+    if key.startswith("ci:"):
+        make_repo(repo, FAMILIES[name]["learn_files"])
+        task = FAMILIES[name]["learn_task"]
+    else:
+        make_repo(repo, ea.HELD_OUT[name]["files"])
+        task = ea.HELD_OUT[name]["task"]
+    s = repo + ".state.json"
+    shutil.copy(state, s)
+    r = rig(repo, task, s)
+    ok = ea.ci(name, repo, r["answer"])[0] if key.startswith("ci:") else py(repo, ea.HELD_OUT[name]["check"])[0]
+    return {"pass": ok, "failed": r["failed_commands"], "calls": len(r["tool_calls"]), "tokens": r["tokens"]}
+
+
+def suite(out, tag, state):
+    keys = list(ea.HELD_OUT) + [f"ci:{f}" for f in FAMS]
+    with cf.ThreadPoolExecutor(4) as pool:
+        jobs = {k: pool.submit(measured, out, tag, k, state) for k in keys}
+        return {k: j.result() for k, j in jobs.items()}
+
+
+def total(s, field="failed"):
+    return sum(v[field] for v in s.values())
+
+
+def judge(base_runs, cand_runs):
+    """The pass and cost verdicts of a candidate's two runs against the base's two."""
+    worst = {k: max(b[k]["failed"] for b in base_runs) for k in base_runs[0]}
+    passed_base = {k: any(b[k]["pass"] for b in base_runs) for k in base_runs[0]}
+    lost = [k for k in worst if passed_base[k] and not any(c[k]["pass"] for c in cand_runs)]
+    slower = [k for k in worst if all(c[k]["failed"] > worst[k] + SLACK for c in cand_runs)]
+    worst_total = max(total(b) for b in base_runs)
+    total_slower = all(total(c) > worst_total + TOTAL_SLACK for c in cand_runs)
+    return {"lost": lost, "slower_items": slower, "total_slower": total_slower,
+            "pass_accept": not lost, "cost_accept": not slower and not total_slower}
+
+
+def one_base(out, b, base):
+    base_runs = [suite(out, f"b{b}-base-{i}", base) for i in (0, 1)]
+    for name in TESTED:
+        cand = os.path.join(out, "states", f"b{b}-{name}.json")
+        ea.add_lesson(base, cand, CANDIDATES[name][1])
+        cand_runs = [suite(out, f"b{b}-{name}-{i}", cand) for i in (0, 1)]
+        v = judge(base_runs, cand_runs)
+        row = {"base": b, "candidate": name, "harmful": CANDIDATES[name][0],
+               "base_runs": base_runs, "cand_runs": cand_runs, **v}
+        ea.log(out, "cost.jsonl", row)
+        print(f"[b{b}] {name}: pass={v['pass_accept']} cost={v['cost_accept']} slower={v['slower_items']} "
+              f"failed base={[total(r) for r in base_runs]} cand={[total(r) for r in cand_runs]}", flush=True)
+
+
+def report(out):
+    rows = [json.loads(l) for l in open(os.path.join(out, "cost.jsonl"))]
+    print("| Lesson | Harmful | Pass check accepted | Pass + cost check accepted | Failed commands, base → candidate (mean of runs) | ci:app_env failed commands, base → candidate |")
+    print("|---|---|---|---|---|---|")
+    for name in TESTED:
+        rs = [r for r in rows if r["candidate"] == name]
+        mean = lambda xs: sum(xs) / max(len(xs), 1)
+        b = mean([total(x) for r in rs for x in r["base_runs"]])
+        c = mean([total(x) for r in rs for x in r["cand_runs"]])
+        be = mean([x["ci:app_env"]["failed"] for r in rs for x in r["base_runs"]])
+        ce = mean([x["ci:app_env"]["failed"] for r in rs for x in r["cand_runs"]])
+        both = sum(r["pass_accept"] and r["cost_accept"] for r in rs)
+        print(f"| {name} | {'yes' if CANDIDATES[name][0] else 'no'} | {sum(r['pass_accept'] for r in rs)}/{len(rs)} | "
+              f"{both}/{len(rs)} | {b:.1f} → {c:.1f} | {be:.1f} → {ce:.1f} |")
+    print()
+    for r in rows:
+        print(f"b{r['base']} {r['candidate']}: slower items {r['slower_items'] or '-'}, total slower {r['total_slower']}, lost {r['lost'] or '-'}")
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--out", default="/tmp/gate-cost")
+    p.add_argument("--report")
+    a = p.parse_args()
+    if a.report:
+        report(a.report)
+        return
+    os.makedirs(os.path.join(a.out, "states"), exist_ok=True)
+    bases = sorted(glob.glob(os.path.join(HERE, "results/experiment_a/states/ungated-r*.json")))
+    with cf.ThreadPoolExecutor(len(bases)) as pool:
+        jobs = []
+        for b, src in enumerate(bases):
+            base = os.path.join(a.out, "states", f"b{b}-base.json")
+            shutil.copy(src, base)
+            jobs.append(pool.submit(one_base, a.out, b, base))
+        for j in jobs:
+            j.result()
+    print("DONE", flush=True)
+
+
+if __name__ == "__main__":
+    main()
