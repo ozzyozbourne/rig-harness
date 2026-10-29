@@ -66,6 +66,38 @@ Raw results are in `eval/results/`. `eval/selftest.py` checks that every
 grader fails the untouched repo and passes a reference fix. Set
 `CONTINUAL_STATE=<file>` to give a run its own learned state.
 
+## Experiment B: the agent manages its own context (DeepSeek V4.1 Flash)
+
+`plugins/ctx_mode` picks how context is kept under `CTX_BUDGET` (32K) per
+run with `CTX_MODE`: `summary` (rig's default compaction, made to act at the
+budget), `keep_last` (keep the task and the newest half budget, no summary),
+or `clm` (after Context Language Models, arXiv 2609.37725: the conversation
+is mirrored to `.clm/<agent>.md`, the agent edits it with its own tools, and
+the edits become its context before each model call; summary is only a
+fallback 8K past the budget). `eval/experiment_b.py` runs three families of
+about 50-70K tokens of tool output each, 5 repeats per arm: `needles` (a
+chain of 10 files, report every key), `kv` (a store updated over 8 resumed
+turns), `rules` (exact report format given first, then 8 chained files).
+
+| arm | success | needles | kv | rules | mean tokens | uncached input | summaries | ctx edits |
+|---|---|---|---|---|---|---|---|---|
+| summary | 14/15 | 5/5 | 5/5 | 4/5 | 261K | 75K | 2.0 | 0 |
+| keep_last | 3/15 | 0/5 | 3/5 | 0/5 | 576K | 183K | 0 | 7.8 |
+| clm | 14/15 | 5/5 | 5/5 | 4/5 | 317K | 98K | 0 | 10.4 |
+
+- CLM works: the agent kept every needed fact by editing its own context,
+  with no summary call in any run, and matched summary compaction.
+- It did not beat it: CLM used about 20% more tokens, 2-3x the tool calls,
+  and was about 2x slower, since each edit is a tool call plus a re-read.
+- CLM broke the "read only with cat" instruction in 6/15 runs (summary
+  1/15), mostly `tail` for the kv line-number questions and once `grep` for
+  rules. Counting only clean runs: summary 13/15, CLM 8/15.
+- Its one rules failure dropped the `INC-` prefix, a format detail lost while
+  rewriting its context. Summary's one failure added a preamble line.
+- `keep_last` loses early facts, as expected: it is the floor.
+
+Raw results: `eval/results/experiment_b/`.
+
 ## Caveats
 
 - Plugin code is fully trusted and the agent can edit `plugins.toml`: run it

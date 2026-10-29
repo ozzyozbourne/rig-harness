@@ -38,13 +38,13 @@ def make_repo(path, files):
                    shell=True, cwd=path, check=True)
 
 
-def rig(repo, prompt, state, session=None, timeout=420):
+def rig(repo, prompt, state, session=None, timeout=420, env=None):
     """One `rig -p --json` run; returns a summary of its events."""
     cmd = ["rig", "-m", MODEL, "-p", "--json"]
     if session:
         cmd += ["-r", session]
     cmd.append(prompt)
-    env = {**os.environ, "CONTINUAL_STATE": state}
+    env = {**os.environ, "CONTINUAL_STATE": state, **(env or {})}
     start = time.time()
     try:
         out = subprocess.run(cmd, cwd=repo, env=env, stdin=subprocess.DEVNULL, capture_output=True,
@@ -71,6 +71,8 @@ def rig(repo, prompt, state, session=None, timeout=420):
         "failed_commands": failed,
         "cost": usage.get("cost", 0.0),
         "tokens": (usage.get("tokens") or {}).get("total_tokens", 0),
+        "input_tokens": (usage.get("tokens") or {}).get("input_tokens", 0),
+        "cached_tokens": (usage.get("tokens") or {}).get("cached_input_tokens", 0),
         "seconds": round(time.time() - start, 1),
     }
 

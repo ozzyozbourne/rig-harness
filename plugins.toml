@@ -203,3 +203,8 @@ plugin = "continual::ContinualPlugin"
 crate = "utc_clock"
 path = "plugins/utc_clock"
 plugin = "utc_clock::UtcClockPlugin"
+# Made by `rig plugin new ctx_mode`.
+[[plugin]]
+crate = "ctx_mode"
+path = "plugins/ctx_mode"
+plugin = "ctx_mode::CtxModePlugin"
