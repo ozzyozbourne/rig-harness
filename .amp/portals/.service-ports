@@ -1,5 +1,6 @@
 {
   "servicePorts": {
-    "expa": 31588
+    "expa": 31588,
+    "gate-test": 32649
   }
 }
