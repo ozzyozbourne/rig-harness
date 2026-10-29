@@ -1,0 +1,1063 @@
+{
+  "version": 20,
+  "next_id": 16,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+      "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+      "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+      "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+    },
+    {
+      "id": 3,
+      "kind": "prompt",
+      "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+      "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+    },
+    {
+      "id": 4,
+      "kind": "prompt",
+      "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+      "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+    },
+    {
+      "id": 5,
+      "kind": "memory",
+      "text": "These Python repos ship no lint config, but check with `which`: mypy and pydocstyle may be installed and are worth running on changed files (this repo has both at /usr/local/bin), while ruff/flake8/pylint are absent; treat the rule text in the CI report as the spec.",
+      "evidence": "The CI mypy/pydocstyle failure on strings/ops.py was reproduced locally: /usr/local/bin/mypy and /usr/local/bin/pydocstyle exist and both ran."
+    },
+    {
+      "id": 6,
+      "kind": "prompt",
+      "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+      "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+    },
+    {
+      "id": 7,
+      "kind": "memory",
+      "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+      "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+      "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+    },
+    {
+      "id": 9,
+      "kind": "prompt",
+      "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+      "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+    },
+    {
+      "id": 10,
+      "kind": "skill",
+      "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+      "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+    },
+    {
+      "id": 11,
+      "kind": "prompt",
+      "text": "CI's mypy/pydocstyle check flags added functions only: give every new function full annotations (all args and return) and a docstring, even when sibling functions in the same file have neither — mirroring their bare style fails the check.",
+      "evidence": "CI rejected `def reverse_words(s):` in strings/ops.py with \"missing annotations (all args and return) or docstring\" although the sibling `shout(s)` in the same file is unannotated and passes."
+    },
+    {
+      "id": 12,
+      "kind": "prompt",
+      "text": "Before reporting a Python change, run `mypy <changed file>` and `pydocstyle <changed file>` locally (both are installed in these repos) and give every new function annotations plus a docstring — do not rely on CI to catch it.",
+      "evidence": "Memory #5 already said mypy/pydocstyle are installed at /usr/local/bin, yet I reported the unannotated `def reverse_words(s):` in strings/ops.py without running them and CI failed (\"missing annotations ... or docstring\"). After adding `s: str) -> str` plus a docstring, `mypy strings/ops.py` printed \"Success: no issues found\" locally, matching CI's green re-run."
+    },
+    {
+      "id": 13,
+      "kind": "memory",
+      "text": "`pydocstyle` exits non-zero in these repos on pre-existing code (D100 module docstring, D103 on old unannotated siblings) that CI never flags; read its output as advice about your own added lines only and do not widen the change to fix the rest.",
+      "evidence": "After fixing strings/ops.py, `pydocstyle strings/ops.py` exited 1 with D100 (missing module docstring) and D103 on the pre-existing `shout`, while CI's report had flagged only the new `reverse_words`. So a non-zero pydocstyle exit locally does not mean my change is wrong; I correctly left the module and `shout` untouched."
+    },
+    {
+      "id": 14,
+      "kind": "memory",
+      "text": "Running `python3 -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable` unless `tests/` has an `__init__.py`; when a repo has no `tests/` yet and you add one, create `tests/__init__.py` (SPDX line + docstring) in the same change.",
+      "evidence": "This session: after creating tests/test_regression_validate_age.py the exact CI command `APP_ENV=test python3 -m unittest discover -s tests -t .` raised \"ImportError: Start directory is not importable: '.../tests'\". Adding tests/__init__.py made the same command run 2 tests OK."
+    },
+    {
+      "id": 15,
+      "kind": "memory",
+      "text": "In the users/ project (app_error task) the project exception type is `AppError` in `users/errors.py`; raise that from library code instead of a builtin like ValueError — CI has an \"error-policy\" check and it passed with AppError.",
+      "evidence": "This session: users/ contained empty __init__.py, errors.py (`class AppError(Exception)`), and validate.py. I made validate_age raise AppError for negative ages (imported via `from .errors import AppError`); the CI report then showed \"✓ tests / ✓ error-policy\"."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In this repo, any behavior change needs a CHANGELOG.md entry under `## Unreleased` in the same turn as the code edit; CI fails without it (not a follow-up to offer).",
+          "evidence": "I fixed slugify and only offered a changelog entry as a follow-up; the CI report then failed with \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\", and a second turn was needed to add it."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "In this repo, any behavior change needs a CHANGELOG.md entry under `## Unreleased` in the same turn as the code edit; CI fails without it (not a follow-up to offer).",
+          "evidence": "I fixed slugify and only offered a changelog entry as a follow-up; the CI report then failed with \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\", and a second turn was needed to add it."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in this Python project: edit the module under textkit/, add or update a unittest.TestCase in tests/, then run `python -m unittest discover -s tests` (pytest is not configured).",
+          "evidence": "The repo has no pytest config, only a tests/ dir of unittest classes; `python -m unittest discover -s tests` ran tests/test_slug.py and gave a clean pass/fail signal after my edit, which let me confirm the fix before reporting."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in this Python project: edit the module under textkit/, add or update a unittest.TestCase in tests/, then run `python -m unittest discover -s tests` (pytest is not configured).",
+          "evidence": "The repo has no pytest config, only a tests/ dir of unittest classes; `python -m unittest discover -s tests` ran tests/test_slug.py and gave a clean pass/fail signal after my edit, which let me confirm the fix before reporting."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/), add or update a unittest.TestCase in tests/, then run `python -m unittest discover -s tests`. Only assume pytest if a pytest config exists.",
+          "evidence": "The textkit path in the old wording did not exist here; the package is inventory/. `python -m unittest discover -s tests -v` in this repo ran all 5 tests (setup.cfg/pytest.ini/tox.ini absent) and gave the pass signal that confirmed the Stock.remove fix."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/), add or update a unittest.TestCase in tests/, then run `python -m unittest discover -s tests`. Only assume pytest if a pytest config exists.",
+          "evidence": "The textkit path in the old wording did not exist here; the package is inventory/. `python -m unittest discover -s tests -v` in this repo ran all 5 tests (setup.cfg/pytest.ini/tox.ini absent) and gave the pass signal that confirmed the Stock.remove fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/), add or update a unittest.TestCase in tests/, then run `python -m unittest discover -s tests`. Only assume pytest if a pytest config exists.",
+          "evidence": "The textkit path in the old wording did not exist here; the package is inventory/. `python -m unittest discover -s tests -v` in this repo ran all 5 tests (setup.cfg/pytest.ini/tox.ini absent) and gave the pass signal that confirmed the Stock.remove fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+          "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "update #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config and no linter is installed (no ruff, flake8 or pylint on PATH or importable), so a lint fix cannot be verified locally; verify by grepping for the banned construct and running the module, and treat the rule text in the CI report as the spec.",
+          "evidence": "After the L001 failure I ran `command -v lint pylint flake8 ruff` and an importlib check for ruff/flake8/pylint/l001: both empty, and the repo has no setup.cfg/pyproject.toml/tox.ini. So I verified the logging fix with `grep`/`rg` for `print(|warnings` (none) plus a runtime check (WARNING record on loader.config, still reaching stderr through the last-resort handler), and told the user the CI lint run is the real confirmation."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+          "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "CI's mypy/pydocstyle check flags added functions only: give every new function full annotations (all args and return) and a docstring, even when sibling functions in the same file have neither — mirroring their bare style fails the check.",
+          "evidence": "CI rejected `def reverse_words(s):` in strings/ops.py with \"missing annotations (all args and return) or docstring\" although the sibling `shout(s)` in the same file is unannotated and passes."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #12",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config, but check with `which`: mypy and pydocstyle may be installed and are worth running on changed files (this repo has both at /usr/local/bin), while ruff/flake8/pylint are absent; treat the rule text in the CI report as the spec.",
+          "evidence": "The CI mypy/pydocstyle failure on strings/ops.py was reproduced locally: /usr/local/bin/mypy and /usr/local/bin/pydocstyle exist and both ran."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+          "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "CI's mypy/pydocstyle check flags added functions only: give every new function full annotations (all args and return) and a docstring, even when sibling functions in the same file have neither — mirroring their bare style fails the check.",
+          "evidence": "CI rejected `def reverse_words(s):` in strings/ops.py with \"missing annotations (all args and return) or docstring\" although the sibling `shout(s)` in the same file is unannotated and passes."
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "reason": "add #13",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config, but check with `which`: mypy and pydocstyle may be installed and are worth running on changed files (this repo has both at /usr/local/bin), while ruff/flake8/pylint are absent; treat the rule text in the CI report as the spec.",
+          "evidence": "The CI mypy/pydocstyle failure on strings/ops.py was reproduced locally: /usr/local/bin/mypy and /usr/local/bin/pydocstyle exist and both ran."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+          "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "CI's mypy/pydocstyle check flags added functions only: give every new function full annotations (all args and return) and a docstring, even when sibling functions in the same file have neither — mirroring their bare style fails the check.",
+          "evidence": "CI rejected `def reverse_words(s):` in strings/ops.py with \"missing annotations (all args and return) or docstring\" although the sibling `shout(s)` in the same file is unannotated and passes."
+        },
+        {
+          "id": 12,
+          "kind": "prompt",
+          "text": "Before reporting a Python change, run `mypy <changed file>` and `pydocstyle <changed file>` locally (both are installed in these repos) and give every new function annotations plus a docstring — do not rely on CI to catch it.",
+          "evidence": "Memory #5 already said mypy/pydocstyle are installed at /usr/local/bin, yet I reported the unannotated `def reverse_words(s):` in strings/ops.py without running them and CI failed (\"missing annotations ... or docstring\"). After adding `s: str) -> str` plus a docstring, `mypy strings/ops.py` printed \"Success: no issues found\" locally, matching CI's green re-run."
+        }
+      ]
+    },
+    {
+      "version": 18,
+      "reason": "add #14",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config, but check with `which`: mypy and pydocstyle may be installed and are worth running on changed files (this repo has both at /usr/local/bin), while ruff/flake8/pylint are absent; treat the rule text in the CI report as the spec.",
+          "evidence": "The CI mypy/pydocstyle failure on strings/ops.py was reproduced locally: /usr/local/bin/mypy and /usr/local/bin/pydocstyle exist and both ran."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+          "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "CI's mypy/pydocstyle check flags added functions only: give every new function full annotations (all args and return) and a docstring, even when sibling functions in the same file have neither — mirroring their bare style fails the check.",
+          "evidence": "CI rejected `def reverse_words(s):` in strings/ops.py with \"missing annotations (all args and return) or docstring\" although the sibling `shout(s)` in the same file is unannotated and passes."
+        },
+        {
+          "id": 12,
+          "kind": "prompt",
+          "text": "Before reporting a Python change, run `mypy <changed file>` and `pydocstyle <changed file>` locally (both are installed in these repos) and give every new function annotations plus a docstring — do not rely on CI to catch it.",
+          "evidence": "Memory #5 already said mypy/pydocstyle are installed at /usr/local/bin, yet I reported the unannotated `def reverse_words(s):` in strings/ops.py without running them and CI failed (\"missing annotations ... or docstring\"). After adding `s: str) -> str` plus a docstring, `mypy strings/ops.py` printed \"Success: no issues found\" locally, matching CI's green re-run."
+        },
+        {
+          "id": 13,
+          "kind": "memory",
+          "text": "`pydocstyle` exits non-zero in these repos on pre-existing code (D100 module docstring, D103 on old unannotated siblings) that CI never flags; read its output as advice about your own added lines only and do not widen the change to fix the rest.",
+          "evidence": "After fixing strings/ops.py, `pydocstyle strings/ops.py` exited 1 with D100 (missing module docstring) and D103 on the pre-existing `shout`, while CI's report had flagged only the new `reverse_words`. So a non-zero pydocstyle exit locally does not mean my change is wrong; I correctly left the module and `shout` untouched."
+        }
+      ]
+    },
+    {
+      "version": 19,
+      "reason": "add #15",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Where a repo has a CHANGELOG.md (or a CI check that requires one), add the entry under `## Unreleased` in the same turn as the behavior change, not as a follow-up. Check first: a repo with no CHANGELOG.md and no CI workflow does not need one.",
+          "evidence": "Lesson was scoped to \"this repo\" from a project that had a changelog CI check (slugify/textkit). Working in /tmp/expA/runs/learn-ungated/r3/regression_test I verified: `git ls-files` lists only inventory/ and tests/ files, there is no .github/workflows, and `grep -ril changelog .` finds nothing — so the unconditional \"CI fails without it\" would have made me create an unrequested file in a repo with no such check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To verify a change in a plain Python repo: edit the module in the project's package dir (e.g. textkit/, inventory/, shapes/), then run `python -m unittest discover -s tests` if a tests/ dir exists (only assume pytest if a pytest config exists). If there is no tests/ dir, verify with `python3 -c \"from <pkg>.<mod> import <fn>; print(<fn>(...))\"` and do not create an unrequested test file for a feature addition.",
+          "evidence": "shapes/ repo (circle task) has no tests/ directory, so the \"add a unittest.TestCase in tests/\" step of the old wording would have created files the user never asked for on a feature add; I instead checked the new function with `python3 -c \"from shapes.circle import area; print(area(2))\"` → 12.566370614359172, before and after the header fix."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When fixing a bug in these repos, include a test whose name starts with `test_regression_` in the same change; an external CI check rejects bug-fix PRs without one.",
+          "evidence": "CI on the Stock.remove fix passed tests but failed regression-tests with \"bug-fix PR contains no test named `test_regression_*`\". The repo has no CI config checked in (no .github/workflows, nothing grepping for \"regression\"), so the naming rule is external and invisible from the code — it has to be remembered."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Put `# SPDX-License-Identifier: Apache-2.0` as line 1 of every .py file you create in these repos. CI's license-header check flags added files only: existing ones (e.g. shapes/square.py) pass without it, so mirroring a sibling module's headerless style is wrong.",
+          "evidence": "I created shapes/circle.py in the style of shapes/square.py (no header) and CI came back \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding it as line 1 fixed the check. The repo has no .github/workflows and no other file mentioning SPDX, so the rule was invisible from the code and cost a CI round trip."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Report warnings from library code with a module-level logger, never `print` or `warnings.warn`: define `logger = logging.getLogger(__name__)` and call `logger.warning(\"config file not found: %s\", path)` (lazy `%s`). CI lint rule L001 (\"library code must not print/warnings.warn, module logger required\") fails the change otherwise.",
+          "evidence": "Asked to make load() return {} plus \"report a warning\" for a missing config file, I chose warnings.warn(f\"config file not found: {path}\", stacklevel=2) after finding /tmp/expA/runs/learn-ungated/r3/logging has only loader/config.py + loader/__init__.py, no logging convention, no lint config, no CI workflow. CI came back \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; swapping to `logger = logging.getLogger(__name__)` + `logger.warning(\"config file not found: %s\", path)` keeps the required behavior (missing -> {}, existing -> parsed dict) and satisfies the rule. The message-mechanism choice was genuinely ambiguous from the code, so the rule had to be learned from the CI report, like the regression_/SPDX rules in #2 and #3."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "These Python repos ship no lint config, but check with `which`: mypy and pydocstyle may be installed and are worth running on changed files (this repo has both at /usr/local/bin), while ruff/flake8/pylint are absent; treat the rule text in the CI report as the spec.",
+          "evidence": "The CI mypy/pydocstyle failure on strings/ops.py was reproduced locally: /usr/local/bin/mypy and /usr/local/bin/pydocstyle exist and both ran."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "End every final report with a line `Risk: low|medium|high` (pick one) as the last line, so the release-bot CI check passes.",
+          "evidence": "In this session a release-bot CI check failed my change with: \"final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI checks (release-bot report format, license-header, regression test naming, lint) run on these repos even when the checkout has no .github/workflows at all, so \"no CI config in the repo\" does not mean a check won't fail; treat any report-format rule as always in force.",
+          "evidence": "This session's repo (greet/) has no .github/workflows, no CHANGELOG.md, no tests/ dir — I checked with `ls -a`, `ls .github`, `ls CHANGELOG.md` — yet the CI report still ran and failed on release-bot (\"final report has no `Risk:` line\"), and reported \"✓ tests\". So the absence of CI config locally was not evidence that no checks apply; only the report revealed it."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "This project's tests CI runs `APP_ENV=test python3 -m unittest discover -s tests -t .`; reproduce that exact command (env var and `-t .`) when verifying, not bare `python -m unittest discover -s tests`.",
+          "evidence": "The CI report for the tax/settings fix named that command; re-running it locally gave 3 tests OK, matching CI."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "\"Fix the code, not the tests\" forbids editing existing tests, not adding the `test_regression_*` file that #2 requires: add a new test module there and leave the existing ones untouched, and say so in the report.",
+          "evidence": "The task said \"Make the tests pass by fixing the code (not the tests)\" while lesson #2 demands a test_regression_* for bug fixes. I fixed billing/tax.py and billing/settings.py, left tests/test_tax.py unmodified, and added tests/test_regression_tax.py; the CI check came back green, so the two instructions do not conflict."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "When tests import-fail inside the package (e.g. a settings/config module raising at import), fix that first and re-run: the import error hides the real assertion failures. Read the whole test run, not just the first error, before concluding the bug list.",
+          "evidence": "First run showed only `RuntimeError: settings: unknown environment None` at import of billing.tax. Reading billing/tax.py alongside showed tax(10) returning 3.0 against the test's 2.0, so both bugs were fixed in one turn; the suite then ran 3 tests OK where the assertion failure would otherwise have appeared only after a second round trip."
+        },
+        {
+          "id": 11,
+          "kind": "prompt",
+          "text": "CI's mypy/pydocstyle check flags added functions only: give every new function full annotations (all args and return) and a docstring, even when sibling functions in the same file have neither — mirroring their bare style fails the check.",
+          "evidence": "CI rejected `def reverse_words(s):` in strings/ops.py with \"missing annotations (all args and return) or docstring\" although the sibling `shout(s)` in the same file is unannotated and passes."
+        },
+        {
+          "id": 12,
+          "kind": "prompt",
+          "text": "Before reporting a Python change, run `mypy <changed file>` and `pydocstyle <changed file>` locally (both are installed in these repos) and give every new function annotations plus a docstring — do not rely on CI to catch it.",
+          "evidence": "Memory #5 already said mypy/pydocstyle are installed at /usr/local/bin, yet I reported the unannotated `def reverse_words(s):` in strings/ops.py without running them and CI failed (\"missing annotations ... or docstring\"). After adding `s: str) -> str` plus a docstring, `mypy strings/ops.py` printed \"Success: no issues found\" locally, matching CI's green re-run."
+        },
+        {
+          "id": 13,
+          "kind": "memory",
+          "text": "`pydocstyle` exits non-zero in these repos on pre-existing code (D100 module docstring, D103 on old unannotated siblings) that CI never flags; read its output as advice about your own added lines only and do not widen the change to fix the rest.",
+          "evidence": "After fixing strings/ops.py, `pydocstyle strings/ops.py` exited 1 with D100 (missing module docstring) and D103 on the pre-existing `shout`, while CI's report had flagged only the new `reverse_words`. So a non-zero pydocstyle exit locally does not mean my change is wrong; I correctly left the module and `shout` untouched."
+        },
+        {
+          "id": 14,
+          "kind": "memory",
+          "text": "Running `python3 -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable` unless `tests/` has an `__init__.py`; when a repo has no `tests/` yet and you add one, create `tests/__init__.py` (SPDX line + docstring) in the same change.",
+          "evidence": "This session: after creating tests/test_regression_validate_age.py the exact CI command `APP_ENV=test python3 -m unittest discover -s tests -t .` raised \"ImportError: Start directory is not importable: '.../tests'\". Adding tests/__init__.py made the same command run 2 tests OK."
+        }
+      ]
+    }
+  ]
+}

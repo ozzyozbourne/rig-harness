@@ -1,0 +1,733 @@
+{
+  "version": 16,
+  "next_id": 12,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "memory",
+      "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+      "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+    },
+    {
+      "id": 1,
+      "kind": "memory",
+      "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+      "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+      "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+    },
+    {
+      "id": 3,
+      "kind": "memory",
+      "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+      "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+    },
+    {
+      "id": 4,
+      "kind": "memory",
+      "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+      "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+      "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) every new or changed function has full type annotations and a docstring (mypy/pydocstyle gate, even if sibling functions lack them); (6) error paths raise the package's own error class from its `errors.py`, not a builtin (the `error-policy` check); (7) the final report ends with a `Risk: low|medium|high` line.",
+      "evidence": "This session's CI report listed a gate the checklist lacked: \"✓ error-policy\", which passed only because validate_age raises the package's AppError from users/errors.py rather than ValueError; the rest of the list stayed as before."
+    },
+    {
+      "id": 7,
+      "kind": "memory",
+      "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+      "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "The `tests` CI check runs as `APP_ENV=test python3 -m unittest discover -s tests -t .`, so module-level env validation never fails in CI; run the suite locally with the variable unset as well, since that is where import-time env checks break.",
+      "evidence": "This session's CI report was \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\". Running that same command locally passed only after my fix, while the plain run without APP_ENV first failed with `RuntimeError: settings: unknown environment None` from billing/settings.py — CI would never have shown that failure."
+    },
+    {
+      "id": 9,
+      "kind": "skill",
+      "text": "When the suite fails with an import/collection error rather than an assertion, learn the whole failure chain before editing: re-run with a value that satisfies the import-time guard (e.g. `APP_ENV=test python -m unittest ...`) or import the module directly, note every hidden failure, fix them, then re-run the plain command.",
+      "evidence": "`python -m unittest discover -s tests -t .` failed with `RuntimeError: settings: unknown environment None` (import error) and hid the real bug; re-running as `APP_ENV=test python -m unittest ...` revealed `AssertionError: 3.0 != 2.0` from the stray `+ 1` in billing/tax.py, so I fixed both bugs in one pass instead of iterating blind."
+    },
+    {
+      "id": 10,
+      "kind": "memory",
+      "text": "This repo's CI has a `mypy/pydocstyle` check that fails on any new or changed function lacking full type annotations and/or a docstring (\"missing annotations (all args and return) or docstring\"); it does not flag untouched pre-existing functions. `mypy`/`pydocstyle` are not installed here (`No module named mypy`), so write annotated, docstringed definitions from the start and verify by importing the module.",
+      "evidence": "CI report on my change: \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" — the function I added was unannotated in the style of the existing `shout`, which was never flagged. Adding `def reverse_words(s: str) -> str:` plus a docstring addresses it; `python3 -m mypy` and `python3 -m pydocstyle` both returned \"No module named ...\" so the gate cannot be re-run locally."
+    },
+    {
+      "id": 11,
+      "kind": "memory",
+      "text": "This repo's CI has an `error-policy` check that appears next to `tests` in the report; a change that raises the package's own error class from its `errors.py` (this session: `from users.errors import AppError`) passed it. When a task says \"raise an exception\", grep the package for an existing error class first and raise that instead of a builtin like `ValueError`.",
+      "evidence": "Read of users/errors.py showed an unused `AppError(Exception)`; I raised AppError from validate_age instead of ValueError and the CI report came back \"✓ tests / ✓ error-policy\", confirming that choice satisfies the gate."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "Project is the small pure-Python `textkit` package (modules like `textkit/slug.py`, tests in `tests/` run with `python -m unittest discover -s tests -t .`); it keeps a `CHANGELOG.md` whose `## Unreleased` section takes a one-line bullet per fix.",
+          "evidence": "Had to discover the layout this session: grepped for `slugify` to find `textkit/slug.py` and `tests/test_slug.py`, read `CHANGELOG.md` to see the `## Unreleased` bullet convention, and ran `python -m unittest discover -s tests -t .` to verify the lowercase fix."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "Project is the small pure-Python `textkit` package (modules like `textkit/slug.py`, tests in `tests/` run with `python -m unittest discover -s tests -t .`); it keeps a `CHANGELOG.md` whose `## Unreleased` section takes a one-line bullet per fix.",
+          "evidence": "Had to discover the layout this session: grepped for `slugify` to find `textkit/slug.py` and `tests/test_slug.py`, read `CHANGELOG.md` to see the `## Unreleased` bullet convention, and ran `python -m unittest discover -s tests -t .` to verify the lowercase fix."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The project worked in here is the small pure-Python `inventory` package (`inventory/stock.py`, `inventory/__init__.py`) with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`; it has no `CHANGELOG.md`, so bug fixes get no changelog bullet. Confirm the package name from the tree instead of assuming `textkit`.",
+          "evidence": "Lesson #0 said the project was `textkit` with a `CHANGELOG.md`; this session's tree was `inventory/stock.py` + `tests/test_stock.py`, and reading `CHANGELOG.md` returned \"no such file\", so I dropped the changelog step and verified with `python -m unittest discover -s tests -t . -v`."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session the only CI failure (release-bot: missing `Risk:` line) was one I could have caught before reporting, just as the earlier gate failures (#1 regression test naming, #2 license header, #3 L001) each surfaced only after I had already reported. I never ran such a self-check; adding one is backed by four separate failed reports."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session the only CI failure (release-bot: missing `Risk:` line) was one I could have caught before reporting, just as the earlier gate failures (#1 regression test naming, #2 license header, #3 L001) each surfaced only after I had already reported. I never ran such a self-check; adding one is backed by four separate failed reports."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+          "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session the only CI failure (release-bot: missing `Risk:` line) was one I could have caught before reporting, just as the earlier gate failures (#1 regression test naming, #2 license header, #3 L001) each surfaced only after I had already reported. I never ran such a self-check; adding one is backed by four separate failed reports."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+          "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `tests` CI check runs as `APP_ENV=test python3 -m unittest discover -s tests -t .`, so module-level env validation never fails in CI; run the suite locally with the variable unset as well, since that is where import-time env checks break.",
+          "evidence": "This session's CI report was \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\". Running that same command locally passed only after my fix, while the plain run without APP_ENV first failed with `RuntimeError: settings: unknown environment None` from billing/settings.py — CI would never have shown that failure."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session the only CI failure (release-bot: missing `Risk:` line) was one I could have caught before reporting, just as the earlier gate failures (#1 regression test naming, #2 license header, #3 L001) each surfaced only after I had already reported. I never ran such a self-check; adding one is backed by four separate failed reports."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+          "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `tests` CI check runs as `APP_ENV=test python3 -m unittest discover -s tests -t .`, so module-level env validation never fails in CI; run the suite locally with the variable unset as well, since that is where import-time env checks break.",
+          "evidence": "This session's CI report was \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\". Running that same command locally passed only after my fix, while the plain run without APP_ENV first failed with `RuntimeError: settings: unknown environment None` from billing/settings.py — CI would never have shown that failure."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When the suite fails with an import/collection error rather than an assertion, learn the whole failure chain before editing: re-run with a value that satisfies the import-time guard (e.g. `APP_ENV=test python -m unittest ...`) or import the module directly, note every hidden failure, fix them, then re-run the plain command.",
+          "evidence": "`python -m unittest discover -s tests -t .` failed with `RuntimeError: settings: unknown environment None` (import error) and hid the real bug; re-running as `APP_ENV=test python -m unittest ...` revealed `AssertionError: 3.0 != 2.0` from the stray `+ 1` in billing/tax.py, so I fixed both bugs in one pass instead of iterating blind."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "update #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session the only CI failure (release-bot: missing `Risk:` line) was one I could have caught before reporting, just as the earlier gate failures (#1 regression test naming, #2 license header, #3 L001) each surfaced only after I had already reported. I never ran such a self-check; adding one is backed by four separate failed reports."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+          "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `tests` CI check runs as `APP_ENV=test python3 -m unittest discover -s tests -t .`, so module-level env validation never fails in CI; run the suite locally with the variable unset as well, since that is where import-time env checks break.",
+          "evidence": "This session's CI report was \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\". Running that same command locally passed only after my fix, while the plain run without APP_ENV first failed with `RuntimeError: settings: unknown environment None` from billing/settings.py — CI would never have shown that failure."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When the suite fails with an import/collection error rather than an assertion, learn the whole failure chain before editing: re-run with a value that satisfies the import-time guard (e.g. `APP_ENV=test python -m unittest ...`) or import the module directly, note every hidden failure, fix them, then re-run the plain command.",
+          "evidence": "`python -m unittest discover -s tests -t .` failed with `RuntimeError: settings: unknown environment None` (import error) and hid the real bug; re-running as `APP_ENV=test python -m unittest ...` revealed `AssertionError: 3.0 != 2.0` from the stray `+ 1` in billing/tax.py, so I fixed both bugs in one pass instead of iterating blind."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "This repo's CI has a `mypy/pydocstyle` check that fails on any new or changed function lacking full type annotations and/or a docstring (\"missing annotations (all args and return) or docstring\"); it does not flag untouched pre-existing functions. `mypy`/`pydocstyle` are not installed here (`No module named mypy`), so write annotated, docstringed definitions from the start and verify by importing the module.",
+          "evidence": "CI report on my change: \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" — the function I added was unannotated in the style of the existing `shout`, which was never flagged. Adding `def reverse_words(s: str) -> str:` plus a docstring addresses it; `python3 -m mypy` and `python3 -m pydocstyle` both returned \"No module named ...\" so the gate cannot be re-run locally."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) every new or changed function has full type annotations and a docstring (mypy/pydocstyle gate, even if sibling functions lack them); (6) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session's only CI failure was the `mypy/pydocstyle` gate, which the old 5-item list did not cover: I added `reverse_words(s)` unannotated because the sibling `shout(s)` is unannotated, and CI rejected it. Adding the annotation/docstring gate to the checklist is backed by that failed report, just as (1)-(4) were backed by earlier ones."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+          "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `tests` CI check runs as `APP_ENV=test python3 -m unittest discover -s tests -t .`, so module-level env validation never fails in CI; run the suite locally with the variable unset as well, since that is where import-time env checks break.",
+          "evidence": "This session's CI report was \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\". Running that same command locally passed only after my fix, while the plain run without APP_ENV first failed with `RuntimeError: settings: unknown environment None` from billing/settings.py — CI would never have shown that failure."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When the suite fails with an import/collection error rather than an assertion, learn the whole failure chain before editing: re-run with a value that satisfies the import-time guard (e.g. `APP_ENV=test python -m unittest ...`) or import the module directly, note every hidden failure, fix them, then re-run the plain command.",
+          "evidence": "`python -m unittest discover -s tests -t .` failed with `RuntimeError: settings: unknown environment None` (import error) and hid the real bug; re-running as `APP_ENV=test python -m unittest ...` revealed `AssertionError: 3.0 != 2.0` from the stray `+ 1` in billing/tax.py, so I fixed both bugs in one pass instead of iterating blind."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "This repo's CI has a `mypy/pydocstyle` check that fails on any new or changed function lacking full type annotations and/or a docstring (\"missing annotations (all args and return) or docstring\"); it does not flag untouched pre-existing functions. `mypy`/`pydocstyle` are not installed here (`No module named mypy`), so write annotated, docstringed definitions from the start and verify by importing the module.",
+          "evidence": "CI report on my change: \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" — the function I added was unannotated in the style of the existing `shout`, which was never flagged. Adding `def reverse_words(s: str) -> str:` plus a docstring addresses it; `python3 -m mypy` and `python3 -m pydocstyle` both returned \"No module named ...\" so the gate cannot be re-run locally."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "update #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "The working directory's project changes between sessions: it may be a small pure-Python package such as `inventory/` or `shapes/` (with tests in `tests/`, run by `python -m unittest discover -s tests -t . -v`). Always read the tree first and match the conventions of sibling modules; do not trust a remembered package name, and do not assume a `CHANGELOG.md` exists.",
+          "evidence": "Lesson #0 asserted the project was the `inventory` package, but this session's tree was `shapes/square.py` + empty `shapes/__init__.py` with no `tests/`; I had to `ls` and read `shapes/square.py` to learn the style, so the concrete package name in the lesson was misleading."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "This project's CI (`regression-tests` check) fails a bug-fix PR that has no test whose name starts with `test_regression_`; name the test for the fixed bug that way.",
+          "evidence": "CI report rejected my Stock.remove fix with \"bug-fix PR contains no test named `test_regression_*`\" even though all functional tests passed; adding `test_regression_remove_more_than_available` addresses it."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI runs a `license-header` check requiring `# SPDX-License-Identifier: Apache-2.0` as the first line of each new Python file (above imports); it did not flag the pre-existing `shapes/square.py`, so only added files need it. There is no CI config in the tree — reports arrive as text, so run the checks you can't see from `.github/`.",
+          "evidence": "CI report: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" after I wrote shapes/circle.py with `import math` on line 1; adding the header fixed it, while header-less shapes/square.py was never flagged."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "This repo's CI lint rule L001 forbids `print` and `warnings.warn` in library code: warning about a runtime condition must go through a module-level `logger = logging.getLogger(__name__)` (e.g. `logger.warning(...)`), and tests must capture it with `assertLogs`/`assertNoLogs`.",
+          "evidence": "CI report on the missing-config change: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". Reworked loader/config.py to a module logger and tests/test_config.py to assertLogs; tests pass."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "When creating the first `tests/` file in this repo, also add `tests/__init__.py` (with the `# SPDX-License-Identifier: Apache-2.0` header); otherwise `python -m unittest discover -s tests -t .` fails with `ImportError: Start directory is not importable`.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` first failed with `ImportError: Start directory is not importable: '.../tests'` because the repo had no `tests/` package; adding `tests/__init__.py` (header included per lesson #2) made discovery run the 2 tests."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "End every final report of a turn with a line `Risk: low|medium|high`, on its own line, as the very last line (e.g. `Risk: low`), because the `release-bot` CI check fails the change when the final report has no such line.",
+          "evidence": "CI report after the greet() change: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\", while the tests check passed."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Before ending a turn with a change, self-check the known CI gates of this repo, since no CI config exists in the tree: (1) every added .py file starts with `# SPDX-License-Identifier: Apache-2.0`; (2) no `print`/`warnings.warn` in library code (L001: use a module logger); (3) a bug-fix PR includes a test named `test_regression_*`; (4) if you created tests/, it has `tests/__init__.py`; (5) every new or changed function has full type annotations and a docstring (mypy/pydocstyle gate, even if sibling functions lack them); (6) the final report ends with a `Risk: low|medium|high` line.",
+          "evidence": "This session's only CI failure was the `mypy/pydocstyle` gate, which the old 5-item list did not cover: I added `reverse_words(s)` unannotated because the sibling `shout(s)` is unannotated, and CI rejected it. Adding the annotation/docstring gate to the checklist is backed by that failed report, just as (1)-(4) were backed by earlier ones."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "Not every project in this repo has a `tests/` directory: a project may be a single tiny package (e.g. `greet/` with `hello.py`), in which case the CI `tests` check passes with no tests and lessons #1 (`test_regression_*`) and #4 (`tests/__init__.py`) only apply once tests exist or a bug is fixed.",
+          "evidence": "This session's project was a `greet/` package with `__init__.py` + `hello.py` and no `tests/` at all; my one-line change passed the CI `tests` check with no tests present, so `test_regression_*` (lesson #1) and `tests/__init__.py` (lesson #4) did not apply here."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `tests` CI check runs as `APP_ENV=test python3 -m unittest discover -s tests -t .`, so module-level env validation never fails in CI; run the suite locally with the variable unset as well, since that is where import-time env checks break.",
+          "evidence": "This session's CI report was \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\". Running that same command locally passed only after my fix, while the plain run without APP_ENV first failed with `RuntimeError: settings: unknown environment None` from billing/settings.py — CI would never have shown that failure."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When the suite fails with an import/collection error rather than an assertion, learn the whole failure chain before editing: re-run with a value that satisfies the import-time guard (e.g. `APP_ENV=test python -m unittest ...`) or import the module directly, note every hidden failure, fix them, then re-run the plain command.",
+          "evidence": "`python -m unittest discover -s tests -t .` failed with `RuntimeError: settings: unknown environment None` (import error) and hid the real bug; re-running as `APP_ENV=test python -m unittest ...` revealed `AssertionError: 3.0 != 2.0` from the stray `+ 1` in billing/tax.py, so I fixed both bugs in one pass instead of iterating blind."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "This repo's CI has a `mypy/pydocstyle` check that fails on any new or changed function lacking full type annotations and/or a docstring (\"missing annotations (all args and return) or docstring\"); it does not flag untouched pre-existing functions. `mypy`/`pydocstyle` are not installed here (`No module named mypy`), so write annotated, docstringed definitions from the start and verify by importing the module.",
+          "evidence": "CI report on my change: \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" — the function I added was unannotated in the style of the existing `shout`, which was never flagged. Adding `def reverse_words(s: str) -> str:` plus a docstring addresses it; `python3 -m mypy` and `python3 -m pydocstyle` both returned \"No module named ...\" so the gate cannot be re-run locally."
+        },
+        {
+          "id": 11,
+          "kind": "memory",
+          "text": "This repo's CI has an `error-policy` check that appears next to `tests` in the report; a change that raises the package's own error class from its `errors.py` (this session: `from users.errors import AppError`) passed it. When a task says \"raise an exception\", grep the package for an existing error class first and raise that instead of a builtin like `ValueError`.",
+          "evidence": "Read of users/errors.py showed an unused `AppError(Exception)`; I raised AppError from validate_age instead of ValueError and the CI report came back \"✓ tests / ✓ error-policy\", confirming that choice satisfies the gate."
+        }
+      ]
+    }
+  ]
+}

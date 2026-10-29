@@ -1,0 +1,859 @@
+{
+  "version": 19,
+  "next_id": 12,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "memory",
+      "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+      "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; `ls`/`find` the tree first and check whether tests/ already has tests before adding any (it may, e.g. tests/test_tax.py); if you create tests/ yourself, add an empty tests/__init__.py — `python3 -m unittest discover -s tests -t .` raises `ImportError: Start directory is not importable: 'tests'` without it; run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+      "evidence": "This session had no tests/ at all and `APP_ENV=test python3 -m unittest discover -s tests -t .` failed with \"ImportError: Start directory is not importable: 'tests'\"; creating an empty tests/__init__.py (plus tests/test_ops.py) made the same command run 6 tests OK, and CI then reported \"✓ tests\". Omitting that step would have left the tests check red."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+      "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+    },
+    {
+      "id": 3,
+      "kind": "memory",
+      "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+      "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+    },
+    {
+      "id": 4,
+      "kind": "memory",
+      "text": "This repo's package layout and tests/ contents differ between sessions (shapes/, loader/, and this session billing/ + tests/test_tax.py), so `ls`/`find` the tree at the start, don't assume any particular package, and don't assume the CI `tests` check is vacuous — tests may already exist.",
+      "evidence": "Old lesson #4 claimed \"This repo has no tests/ directory at the start of a session, so the CI tests check passes vacuously\"; this session `ls -la` showed billing/, tests/ (with __init__.py and test_tax.py) already present, so that claim was stale and the vacuous-pass reasoning would have been wrong."
+    },
+    {
+      "id": 5,
+      "kind": "memory",
+      "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+      "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+    },
+    {
+      "id": 6,
+      "kind": "memory",
+      "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+      "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+    },
+    {
+      "id": 7,
+      "kind": "memory",
+      "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+      "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "CI for this project has a mypy/pydocstyle check (not in the repo): every new public function needs full type annotations (all args and return) and/or a docstring — write both from the start, e.g. `def reverse_words(s: str) -> str:` plus a one-line docstring. Older functions like strings/ops.py's `shout` (no annotations, no docstring, no module docstring) are grandfathered and pydocstyle still reports D100/D103 on them locally, so only the new symbol matters. Locally verify with `python3 -m mypy --explicit-package-bases strings tests` (plain `mypy strings/ tests/` fails with a duplicate-module/explicit-package-base error that is not a code problem) and `python3 -m pydocstyle strings/ops.py`.",
+      "evidence": "CI report flagged 'strings/ops.py: reverse_words: missing annotations (all args and return) or docstring' after I added the unannotated, undocumented function."
+    },
+    {
+      "id": 9,
+      "kind": "prompt",
+      "text": "When you add a public function to code that is grandfathered without annotations or docstrings, still write full type annotations and a one-line docstring on the new function: match the file's naming/structure style, but CI checks the new symbol and fails it with \"missing annotations (all args and return) or docstring\".",
+      "evidence": "I wrote `def reverse_words(s):` to match the bare style of `shout` in strings/ops.py; the CI report then failed with \"mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\", requiring a second turn to add `s: str -> str` and a docstring."
+    },
+    {
+      "id": 10,
+      "kind": "memory",
+      "text": "This repo's CI has an `error-policy` check (not in the repo) that passes when library code raises the package's own exception base (e.g. users/errors.py AppError) instead of a builtin like ValueError; raising AppError for bad input satisfied it.",
+      "evidence": "The CI report for the validate_age change (raising users.errors.AppError for negative ages) came back all green including `✓ error-policy`, confirming raising the package's AppError over a builtin is the accepted policy."
+    },
+    {
+      "id": 11,
+      "kind": "memory",
+      "text": "pydocstyle (CI's mypy/pydocstyle check) also reports D100 on the module you touch: when you edit an existing module that has no module docstring (like users/validate.py, which is otherwise grandfathered), add a one-line module docstring in the same pass, then confirm with `python3 -m pydocstyle <file>`.",
+      "evidence": "After editing users/validate.py (a grandfathered file with no module docstring), `python3 -m pydocstyle users/validate.py` failed with \"users/validate.py:1 at module level: D100: Missing docstring in public module\"; adding a one-line module docstring (\"\\\"\\\"\\\"Validation helpers for user attributes.\\\"\\\"\\\"\") made it clean. Lesson #8 says only the new symbol matters for CI, so without this the local pydocstyle run stays dirty on every file I edit and I have to spend a second pass to clear it."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: run `python3 -m unittest discover -s tests`, add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and add a regression test for the fixed behavior before reporting done.",
+          "evidence": "The slugify fix passed local tests yet failed CI only for the missing changelog bullet; re-running the tests plus a new test_mixed_case_is_lowercased case confirmed the fix."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: run `python3 -m unittest discover -s tests`, add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "CI report on the Stock.remove bug fix failed with \"regression-tests: bug-fix PR contains no test named `test_regression_*`\"; the test I had added was named `test_remove_too_many_raises`, and renaming it to `test_regression_remove_more_than_available_raises` satisfied the check."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: run `python3 -m unittest discover -s tests`, add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "CI report on the Stock.remove bug fix failed with \"regression-tests: bug-fix PR contains no test named `test_regression_*`\"; the test I had added was named `test_remove_too_many_raises`, and renaming it to `test_regression_remove_more_than_available_raises` satisfied the check."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: run `python3 -m unittest discover -s tests`, add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "CI report on the Stock.remove bug fix failed with \"regression-tests: bug-fix PR contains no test named `test_regression_*`\"; the test I had added was named `test_remove_too_many_raises`, and renaming it to `test_regression_remove_more_than_available_raises` satisfied the check."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, run `python3 -m unittest discover -s tests` (if `tests/` is absent this raises `ImportError: Start directory is not importable` — then either create `tests/` with tests or state the suite cannot run), add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "This session: the new shapes/circle.py failed CI with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" and had to be edited afterwards; and `python3 -m unittest discover -s tests` failed with \"ImportError: Start directory is not importable: 'tests'\" because the repo has no tests/ directory, so the check step of the old skill could not be carried out as written."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, run `python3 -m unittest discover -s tests` (if `tests/` is absent this raises `ImportError: Start directory is not importable` — then either create `tests/` with tests or state the suite cannot run), add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "This session: the new shapes/circle.py failed CI with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" and had to be edited afterwards; and `python3 -m unittest discover -s tests` failed with \"ImportError: Start directory is not importable: 'tests'\" because the repo has no tests/ directory, so the check step of the old skill could not be carried out as written."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory (only the `shapes/` package with square.py and an empty __init__.py), so the CI `tests` check passes vacuously; adding tests means creating `tests/` first.",
+          "evidence": "`ls -a` and `find . -name \"*.py\"` showed only shapes/__init__.py and shapes/square.py; `ls tests` said \"no tests dir\" and `python3 -m unittest discover -s tests` printed \"ImportError: Start directory is not importable: 'tests'\" while still exiting 0."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "update #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, run `python3 -m unittest discover -s tests` (if `tests/` is absent this raises `ImportError: Start directory is not importable` — then either create `tests/` with tests or state the suite cannot run), add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "This session: the new shapes/circle.py failed CI with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" and had to be edited afterwards; and `python3 -m unittest discover -s tests` failed with \"ImportError: Start directory is not importable: 'tests'\" because the repo has no tests/ directory, so the check step of the old skill could not be carried out as written."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory (only the `shapes/` package with square.py and an empty __init__.py), so the CI `tests` check passes vacuously; adding tests means creating `tests/` first.",
+          "evidence": "`ls -a` and `find . -name \"*.py\"` showed only shapes/__init__.py and shapes/square.py; `ls tests` said \"no tests dir\" and `python3 -m unittest discover -s tests` printed \"ImportError: Start directory is not importable: 'tests'\" while still exiting 0."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, run `python3 -m unittest discover -s tests` (if `tests/` is absent this raises `ImportError: Start directory is not importable` — then either create `tests/` with tests or state the suite cannot run), add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "This session: the new shapes/circle.py failed CI with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" and had to be edited afterwards; and `python3 -m unittest discover -s tests` failed with \"ImportError: Start directory is not importable: 'tests'\" because the repo has no tests/ directory, so the check step of the old skill could not be carried out as written."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory at the start of a session, so the CI `tests` check passes vacuously until you create `tests/` with tests; the package layout differs between sessions (don't assume `shapes/` — a later session had only `loader/config.py` and `loader/__init__.py`), so describe CI checks rather than specific files.",
+          "evidence": "Earlier evidence: only shapes/__init__.py and shapes/square.py existed. This session `find . -name \"*.py\"` returned just ./loader/__init__.py and ./loader/config.py — no shapes/ package at all — so the file-naming part of the old lesson was wrong for the current repo and I had to re-discover the layout."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, run `python3 -m unittest discover -s tests` (if `tests/` is absent this raises `ImportError: Start directory is not importable` — then either create `tests/` with tests or state the suite cannot run), add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "This session: the new shapes/circle.py failed CI with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" and had to be edited afterwards; and `python3 -m unittest discover -s tests` failed with \"ImportError: Start directory is not importable: 'tests'\" because the repo has no tests/ directory, so the check step of the old skill could not be carried out as written."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory at the start of a session, so the CI `tests` check passes vacuously until you create `tests/` with tests; the package layout differs between sessions (don't assume `shapes/` — a later session had only `loader/config.py` and `loader/__init__.py`), so describe CI checks rather than specific files.",
+          "evidence": "Earlier evidence: only shapes/__init__.py and shapes/square.py existed. This session `find . -name \"*.py\"` returned just ./loader/__init__.py and ./loader/config.py — no shapes/ package at all — so the file-naming part of the old lesson was wrong for the current repo and I had to re-discover the layout."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, run `python3 -m unittest discover -s tests` (if `tests/` is absent this raises `ImportError: Start directory is not importable` — then either create `tests/` with tests or state the suite cannot run), add a bullet under `## Unreleased` in CHANGELOG.md (matching the \"- Fixed ...\"/\"- Added ...\" style of released sections), and for bug fixes add a regression test whose function name starts with `test_regression_` (CI fails otherwise: \"bug-fix PR contains no test named `test_regression_*`\") before reporting done.",
+          "evidence": "This session: the new shapes/circle.py failed CI with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\" and had to be edited afterwards; and `python3 -m unittest discover -s tests` failed with \"ImportError: Start directory is not importable: 'tests'\" because the repo has no tests/ directory, so the check step of the old skill could not be carried out as written."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory at the start of a session, so the CI `tests` check passes vacuously until you create `tests/` with tests; the package layout differs between sessions (don't assume `shapes/` — a later session had only `loader/config.py` and `loader/__init__.py`), so describe CI checks rather than specific files.",
+          "evidence": "Earlier evidence: only shapes/__init__.py and shapes/square.py existed. This session `find . -name \"*.py\"` returned just ./loader/__init__.py and ./loader/config.py — no shapes/ package at all — so the file-naming part of the old lesson was wrong for the current repo and I had to re-discover the layout."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (including tests/__init__.py and test modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start, create tests/ with tests since the baseline has none, run `python3 -m unittest discover -s tests`, add a bullet under `## Unreleased` in CHANGELOG.md (create the file with `# Changelog` if absent), for bug fixes name a test `test_regression_*`, and end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session: first final report for the greet() change omitted the risk line and CI came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"; the fix was to re-report the identical change ending with \"Risk: low\", with no code change. The header/CHANGELOG/test steps were all done up front here (tests/__init__.py given the SPDX header), which is why the old procedure's gaps only showed as this omission."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory at the start of a session, so the CI `tests` check passes vacuously until you create `tests/` with tests; the package layout differs between sessions (don't assume `shapes/` — a later session had only `loader/config.py` and `loader/__init__.py`), so describe CI checks rather than specific files.",
+          "evidence": "Earlier evidence: only shapes/__init__.py and shapes/square.py existed. This session `find . -name \"*.py\"` returned just ./loader/__init__.py and ./loader/config.py — no shapes/ package at all — so the file-naming part of the old lesson was wrong for the current repo and I had to re-discover the layout."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "update #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; check whether tests/ already exists and has tests before adding any (it may, e.g. tests/test_tax.py); run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session's CI report printed the check as \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\"; the old skill text said to run `python3 -m unittest discover -s tests` (no `-t .`, no APP_ENV), so I had to re-derive the real command from the report and re-run it locally to confirm 4 tests OK. Also the old skill said \"create tests/ with tests since the baseline has none\", but this session tests/ and tests/test_tax.py already existed at the start (`ls -la`), so that step was wrong."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo has no tests/ directory at the start of a session, so the CI `tests` check passes vacuously until you create `tests/` with tests; the package layout differs between sessions (don't assume `shapes/` — a later session had only `loader/config.py` and `loader/__init__.py`), so describe CI checks rather than specific files.",
+          "evidence": "Earlier evidence: only shapes/__init__.py and shapes/square.py existed. This session `find . -name \"*.py\"` returned just ./loader/__init__.py and ./loader/config.py — no shapes/ package at all — so the file-naming part of the old lesson was wrong for the current repo and I had to re-discover the layout."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; check whether tests/ already exists and has tests before adding any (it may, e.g. tests/test_tax.py); run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session's CI report printed the check as \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\"; the old skill text said to run `python3 -m unittest discover -s tests` (no `-t .`, no APP_ENV), so I had to re-derive the real command from the report and re-run it locally to confirm 4 tests OK. Also the old skill said \"create tests/ with tests since the baseline has none\", but this session tests/ and tests/test_tax.py already existed at the start (`ls -la`), so that step was wrong."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo's package layout and tests/ contents differ between sessions (shapes/, loader/, and this session billing/ + tests/test_tax.py), so `ls`/`find` the tree at the start, don't assume any particular package, and don't assume the CI `tests` check is vacuous — tests may already exist.",
+          "evidence": "Old lesson #4 claimed \"This repo has no tests/ directory at the start of a session, so the CI tests check passes vacuously\"; this session `ls -la` showed billing/, tests/ (with __init__.py and test_tax.py) already present, so that claim was stale and the vacuous-pass reasoning would have been wrong."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; check whether tests/ already exists and has tests before adding any (it may, e.g. tests/test_tax.py); run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session's CI report printed the check as \"✓ tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\"; the old skill text said to run `python3 -m unittest discover -s tests` (no `-t .`, no APP_ENV), so I had to re-derive the real command from the report and re-run it locally to confirm 4 tests OK. Also the old skill said \"create tests/ with tests since the baseline has none\", but this session tests/ and tests/test_tax.py already existed at the start (`ls -la`), so that step was wrong."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo's package layout and tests/ contents differ between sessions (shapes/, loader/, and this session billing/ + tests/test_tax.py), so `ls`/`find` the tree at the start, don't assume any particular package, and don't assume the CI `tests` check is vacuous — tests may already exist.",
+          "evidence": "Old lesson #4 claimed \"This repo has no tests/ directory at the start of a session, so the CI tests check passes vacuously\"; this session `ls -la` showed billing/, tests/ (with __init__.py and test_tax.py) already present, so that claim was stale and the vacuous-pass reasoning would have been wrong."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "CI for this project has a mypy/pydocstyle check (not in the repo): every new public function needs full type annotations (all args and return) and/or a docstring — write both from the start, e.g. `def reverse_words(s: str) -> str:` plus a one-line docstring. Older functions like strings/ops.py's `shout` (no annotations, no docstring, no module docstring) are grandfathered and pydocstyle still reports D100/D103 on them locally, so only the new symbol matters. Locally verify with `python3 -m mypy --explicit-package-bases strings tests` (plain `mypy strings/ tests/` fails with a duplicate-module/explicit-package-base error that is not a code problem) and `python3 -m pydocstyle strings/ops.py`.",
+          "evidence": "CI report flagged 'strings/ops.py: reverse_words: missing annotations (all args and return) or docstring' after I added the unannotated, undocumented function."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; `ls`/`find` the tree first and check whether tests/ already has tests before adding any (it may, e.g. tests/test_tax.py); if you create tests/ yourself, add an empty tests/__init__.py — `python3 -m unittest discover -s tests -t .` raises `ImportError: Start directory is not importable: 'tests'` without it; run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session had no tests/ at all and `APP_ENV=test python3 -m unittest discover -s tests -t .` failed with \"ImportError: Start directory is not importable: 'tests'\"; creating an empty tests/__init__.py (plus tests/test_ops.py) made the same command run 6 tests OK, and CI then reported \"✓ tests\". Omitting that step would have left the tests check red."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo's package layout and tests/ contents differ between sessions (shapes/, loader/, and this session billing/ + tests/test_tax.py), so `ls`/`find` the tree at the start, don't assume any particular package, and don't assume the CI `tests` check is vacuous — tests may already exist.",
+          "evidence": "Old lesson #4 claimed \"This repo has no tests/ directory at the start of a session, so the CI tests check passes vacuously\"; this session `ls -la` showed billing/, tests/ (with __init__.py and test_tax.py) already present, so that claim was stale and the vacuous-pass reasoning would have been wrong."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "CI for this project has a mypy/pydocstyle check (not in the repo): every new public function needs full type annotations (all args and return) and/or a docstring — write both from the start, e.g. `def reverse_words(s: str) -> str:` plus a one-line docstring. Older functions like strings/ops.py's `shout` (no annotations, no docstring, no module docstring) are grandfathered and pydocstyle still reports D100/D103 on them locally, so only the new symbol matters. Locally verify with `python3 -m mypy --explicit-package-bases strings tests` (plain `mypy strings/ tests/` fails with a duplicate-module/explicit-package-base error that is not a code problem) and `python3 -m pydocstyle strings/ops.py`.",
+          "evidence": "CI report flagged 'strings/ops.py: reverse_words: missing annotations (all args and return) or docstring' after I added the unannotated, undocumented function."
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; `ls`/`find` the tree first and check whether tests/ already has tests before adding any (it may, e.g. tests/test_tax.py); if you create tests/ yourself, add an empty tests/__init__.py — `python3 -m unittest discover -s tests -t .` raises `ImportError: Start directory is not importable: 'tests'` without it; run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session had no tests/ at all and `APP_ENV=test python3 -m unittest discover -s tests -t .` failed with \"ImportError: Start directory is not importable: 'tests'\"; creating an empty tests/__init__.py (plus tests/test_ops.py) made the same command run 6 tests OK, and CI then reported \"✓ tests\". Omitting that step would have left the tests check red."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo's package layout and tests/ contents differ between sessions (shapes/, loader/, and this session billing/ + tests/test_tax.py), so `ls`/`find` the tree at the start, don't assume any particular package, and don't assume the CI `tests` check is vacuous — tests may already exist.",
+          "evidence": "Old lesson #4 claimed \"This repo has no tests/ directory at the start of a session, so the CI tests check passes vacuously\"; this session `ls -la` showed billing/, tests/ (with __init__.py and test_tax.py) already present, so that claim was stale and the vacuous-pass reasoning would have been wrong."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "CI for this project has a mypy/pydocstyle check (not in the repo): every new public function needs full type annotations (all args and return) and/or a docstring — write both from the start, e.g. `def reverse_words(s: str) -> str:` plus a one-line docstring. Older functions like strings/ops.py's `shout` (no annotations, no docstring, no module docstring) are grandfathered and pydocstyle still reports D100/D103 on them locally, so only the new symbol matters. Locally verify with `python3 -m mypy --explicit-package-bases strings tests` (plain `mypy strings/ tests/` fails with a duplicate-module/explicit-package-base error that is not a code problem) and `python3 -m pydocstyle strings/ops.py`.",
+          "evidence": "CI report flagged 'strings/ops.py: reverse_words: missing annotations (all args and return) or docstring' after I added the unannotated, undocumented function."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When you add a public function to code that is grandfathered without annotations or docstrings, still write full type annotations and a one-line docstring on the new function: match the file's naming/structure style, but CI checks the new symbol and fails it with \"missing annotations (all args and return) or docstring\".",
+          "evidence": "I wrote `def reverse_words(s):` to match the bare style of `shout` in strings/ops.py; the CI report then failed with \"mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\", requiring a second turn to add `s: str -> str` and a docstring."
+        }
+      ]
+    },
+    {
+      "version": 18,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "CI for this project requires an entry under `## Unreleased` in CHANGELOG.md for every change; the CI config is not in the repo, so it only surfaces in the CI report.",
+          "evidence": "After fixing slugify I asked the user whether they wanted a changelog entry; CI then failed with \"CHANGELOG.md: no entry under `## Unreleased` for this change\". Repo has no .github/workflows or CI config (`git log` shows a single \"init\" commit)."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Finishing a change in this repo: write new .py files (test modules, any new package modules) with `# SPDX-License-Identifier: Apache-2.0` as line 1 from the start; `ls`/`find` the tree first and check whether tests/ already has tests before adding any (it may, e.g. tests/test_tax.py); if you create tests/ yourself, add an empty tests/__init__.py — `python3 -m unittest discover -s tests -t .` raises `ImportError: Start directory is not importable: 'tests'` without it; run the CI command exactly as CI does it — `APP_ENV=test python3 -m unittest discover -s tests -t .` (note `-t .`); add a bullet under `## Unreleased` in CHANGELOG.md (create it with `# Changelog` if absent); for bug fixes name a test `test_regression_*`; end the final report with a `Risk: low|medium|high` line — if CI flags only that line, re-state the same report with it instead of touching code.",
+          "evidence": "This session had no tests/ at all and `APP_ENV=test python3 -m unittest discover -s tests -t .` failed with \"ImportError: Start directory is not importable: 'tests'\"; creating an empty tests/__init__.py (plus tests/test_ops.py) made the same command run 6 tests OK, and CI then reported \"✓ tests\". Omitting that step would have left the tests check red."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo has no CHANGELOG.md until you create one: make it with a `# Changelog` heading and a `## Unreleased` section holding the bullet, which satisfies the CI changelog check.",
+          "evidence": "`ls -a` at the start and `cat CHANGELOG.md` showed no changelog file; I wrote one with `# Changelog` + `## Unreleased` + a \"- Fixed `Stock.remove` ...\" bullet, and the following CI report listed only \"✓ tests / ✗ regression-tests\" with no changelog complaint."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "CI for this project has a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` on line 1 (older files like shapes/square.py are grandfathered and lack it).",
+          "evidence": "CI report failed with \"license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; adding the header as the first line of shapes/circle.py fixed it."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "This repo's package layout and tests/ contents differ between sessions (shapes/, loader/, and this session billing/ + tests/test_tax.py), so `ls`/`find` the tree at the start, don't assume any particular package, and don't assume the CI `tests` check is vacuous — tests may already exist.",
+          "evidence": "Old lesson #4 claimed \"This repo has no tests/ directory at the start of a session, so the CI tests check passes vacuously\"; this session `ls -la` showed billing/, tests/ (with __init__.py and test_tax.py) already present, so that claim was stale and the vacuous-pass reasoning would have been wrong."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "This repo's CI has a lint rule L001 (not in the repo): library code must not use print or warnings.warn — it needs a module logger (`logger = logging.getLogger(__name__)`) and `logger.warning(...)` instead.",
+          "evidence": "CI report on the missing-config-file change failed with \"lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\" after I implemented the warning with warnings.warn; switching to a module logger and assertLogs made it pass."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "This environment runs Python 3.11.6 (`python3`), so 3.10+ APIs such as `self.assertNoLogs` are available.",
+          "evidence": "I ran `python3 --version` before choosing assertLogs/assertNoLogs for the logging tests, getting \"Python 3.11.6\"; assertNoLogs needs 3.10+, so this decided the test style."
+        },
+        {
+          "id": 7,
+          "kind": "memory",
+          "text": "CI for this project has a `release-bot` check (not in the repo): the final report of the turn must end with a line of the form `Risk: low`, `Risk: medium` or `Risk: high`. Without it CI fails with \"final report has no `Risk: low|medium|high` line at the end\".",
+          "evidence": "CI report for the greet() change said: \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "CI for this project has a mypy/pydocstyle check (not in the repo): every new public function needs full type annotations (all args and return) and/or a docstring — write both from the start, e.g. `def reverse_words(s: str) -> str:` plus a one-line docstring. Older functions like strings/ops.py's `shout` (no annotations, no docstring, no module docstring) are grandfathered and pydocstyle still reports D100/D103 on them locally, so only the new symbol matters. Locally verify with `python3 -m mypy --explicit-package-bases strings tests` (plain `mypy strings/ tests/` fails with a duplicate-module/explicit-package-base error that is not a code problem) and `python3 -m pydocstyle strings/ops.py`.",
+          "evidence": "CI report flagged 'strings/ops.py: reverse_words: missing annotations (all args and return) or docstring' after I added the unannotated, undocumented function."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When you add a public function to code that is grandfathered without annotations or docstrings, still write full type annotations and a one-line docstring on the new function: match the file's naming/structure style, but CI checks the new symbol and fails it with \"missing annotations (all args and return) or docstring\".",
+          "evidence": "I wrote `def reverse_words(s):` to match the bare style of `shout` in strings/ops.py; the CI report then failed with \"mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\", requiring a second turn to add `s: str -> str` and a docstring."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "This repo's CI has an `error-policy` check (not in the repo) that passes when library code raises the package's own exception base (e.g. users/errors.py AppError) instead of a builtin like ValueError; raising AppError for bad input satisfied it.",
+          "evidence": "The CI report for the validate_age change (raising users.errors.AppError for negative ages) came back all green including `✓ error-policy`, confirming raising the package's AppError over a builtin is the accepted policy."
+        }
+      ]
+    }
+  ]
+}

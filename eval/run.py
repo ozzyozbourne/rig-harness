@@ -22,7 +22,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 from tasks import FAMILIES  # noqa: E402
 
-MODEL = "openrouter/z-ai/glm-5.3-flash"
+MODEL = os.environ.get("EVAL_MODEL", "openrouter/z-ai/glm-5.3-flash")
 EMPTY = {"version": 0, "next_id": 0, "lessons": [], "history": []}
 
 

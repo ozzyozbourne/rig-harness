@@ -1,0 +1,1123 @@
+{
+  "version": 24,
+  "next_id": 12,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "memory",
+      "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+      "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. When a repo has no tests (shapes, users), verify instead with an inline `python3 -c` snippet that imports the function and asserts each behavior, including the error path in a `try/except <the expected class>` so the raised type is checked, not just that something raised.",
+      "evidence": "In the users repo (no tests/) the verification was one `python3 -c` snippet asserting validate_age(0)/validate_age(42) are True and that validate_age(-1) raises inside `except AppError`; CI then came back ✓ tests / ✓ error-policy, so the snippet covered the behavior the gates cared about. The old wording only mentioned asserting known return values, which would not have checked the new raise."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+      "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+    },
+    {
+      "id": 3,
+      "kind": "memory",
+      "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises), strings (`strings/{__init__.py,ops.py}` only, no tests/packaging/CI config; CI jobs = tests + mypy/pydocstyle), users (`users/{validate.py,errors.py}`, empty `__init__.py`, no tests/packaging/CI config; CI jobs = tests + error-policy, see #11).",
+      "evidence": "This session's project was `users` (users/validate.py, users/errors.py, empty users/__init__.py, no tests/, no in-tree CI config), which was not in the known-projects list; `ls` + `grep -rn validate_age` was needed to establish it, and its CI gates (tests + error-policy) were only learned from the report afterwards."
+    },
+    {
+      "id": 4,
+      "kind": "memory",
+      "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+      "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+    },
+    {
+      "id": 5,
+      "kind": "memory",
+      "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+      "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+    },
+    {
+      "id": 6,
+      "kind": "memory",
+      "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+      "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+      "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+    },
+    {
+      "id": 8,
+      "kind": "skill",
+      "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+      "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+    },
+    {
+      "id": 9,
+      "kind": "memory",
+      "text": "In the `strings` repo (only `strings/__init__.py` + `strings/ops.py`, no tests/, no packaging or CI config in-tree), CI has a `mypy/pydocstyle` gate that fails a change unless each new/changed function has full annotations (all args and return) and a docstring; it reports per changed function, not whole-file (pre-existing `shout` and the module-level D100 were not flagged).",
+      "evidence": "CI report \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" after adding reverse_words without annotations; local pydocstyle then still listed only pre-existing module/shout issues."
+    },
+    {
+      "id": 10,
+      "kind": "skill",
+      "text": "Before finishing a change in a repo with no in-tree CI config, check which linters/type-checkers are installed locally (`command -v mypy ruff flake8 pydocstyle`) and run them on the changed file, so an obvious gate fails here rather than in the CI round: full annotations + docstring when mypy and pydocstyle are both present. Treat their findings on lines you did not touch as pre-existing and leave them alone.",
+      "evidence": "In the strings repo I added `reverse_words(s)` with no annotations, then only ran `mypy`/`pydocstyle` (both already on PATH: `command -v mypy pydocstyle` -> /usr/local/bin/mypy) after CI had already failed with \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations ...\". Run locally first, mypy passed straight away and pydocstyle showed only the pre-existing module/shout issues."
+    },
+    {
+      "id": 11,
+      "kind": "memory",
+      "text": "The `users` repo (`users/validate.py`, `users/errors.py` with `AppError`, empty `users/__init__.py`; no tests/, no packaging or CI config in-tree) has CI gates `tests` + `error-policy`; raising the repo's own `errors.AppError` satisfied `error-policy`, so prefer the in-repo error class over builtins for new raises there.",
+      "evidence": "Turn in the users repo changed validate_age to raise AppError for negative ages; the CI report came back `✓ tests` / `✓ error-policy`, and AppError (vs the builtin ValueError alternative) was the choice that gate tested."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "This project's CI requires a CHANGELOG.md bullet under `## Unreleased` for every change; style is `- Fixed ...`/`- Added ...` matching the released sections. Add it in the same turn as the code change.",
+          "evidence": "After fixing textkit/slug.py and adding a test, CI reported \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\"; I had to make a second turn to add the bullet."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "This project's CI requires a CHANGELOG.md bullet under `## Unreleased` for every change; style is `- Fixed ...`/`- Added ...` matching the released sections. Add it in the same turn as the code change.",
+          "evidence": "After fixing textkit/slug.py and adding a test, CI reported \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\"; I had to make a second turn to add the bullet."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To test this repo (Python, no packaging config), run from the repo root: `python3 -m unittest discover -s tests -t . -v`. The `-t .` is needed because tests do `from textkit.slug import slugify`.",
+          "evidence": "Used `python3 -m unittest discover -s tests -t . -v` to verify the slugify fix; it ran tests/test_slug.py and both tests passed, whereas a bare `-s tests` lacks the repo root on sys.path."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "This project's CI requires a CHANGELOG.md bullet under `## Unreleased` for every change; style is `- Fixed ...`/`- Added ...` matching the released sections. Add it in the same turn as the code change.",
+          "evidence": "After fixing textkit/slug.py and adding a test, CI reported \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\"; I had to make a second turn to add the bullet."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To test this repo (Python, no packaging config), run from the repo root: `python3 -m unittest discover -s tests -t . -v`. The `-t .` is needed because tests do `from textkit.slug import slugify`.",
+          "evidence": "Used `python3 -m unittest discover -s tests -t . -v` to verify the slugify fix; it ran tests/test_slug.py and both tests passed, whereas a bare `-s tests` lacks the repo root on sys.path."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises addressed it."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "update #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To test this repo (Python, no packaging config), run from the repo root: `python3 -m unittest discover -s tests -t . -v`. The `-t .` is needed because tests do `from textkit.slug import slugify`.",
+          "evidence": "Used `python3 -m unittest discover -s tests -t . -v` to verify the slugify fix; it ran tests/test_slug.py and both tests passed, whereas a bare `-s tests` lacks the repo root on sys.path."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises addressed it."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To test this repo (Python, no packaging config), run from the repo root: `python3 -m unittest discover -s tests -t . -v`. The `-t .` is needed because tests do `from textkit.slug import slugify`.",
+          "evidence": "Used `python3 -m unittest discover -s tests -t . -v` to verify the slugify fix; it ran tests/test_slug.py and both tests passed, whereas a bare `-s tests` lacks the repo root on sys.path."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "To test this repo (Python, no packaging config), run from the repo root: `python3 -m unittest discover -s tests -t . -v`. The `-t .` is needed because tests do `from textkit.slug import slugify`.",
+          "evidence": "Used `python3 -m unittest discover -s tests -t . -v` to verify the slugify fix; it ran tests/test_slug.py and both tests passed, whereas a bare `-s tests` lacks the repo root on sys.path."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The current project is the `inventory` repo: `inventory/stock.py` (class `Stock`) with `tests/test_stock.py`, plain unittest, no packaging or CI config in-tree; testing uses the same `python3 -m unittest discover -s tests -t . -v` as textkit.",
+          "evidence": "This session's project is not textkit: `ls` shows `inventory/{__init__.py,stock.py}` and `tests/test_stock.py`, no packaging config and no CI config files. Lesson #1's command still worked unchanged (`python3 -m unittest discover -s tests -t . -v`, 5 tests OK), so only the project identity had to be rediscovered."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "The current project is the `inventory` repo: `inventory/stock.py` (class `Stock`) with `tests/test_stock.py`, plain unittest, no packaging or CI config in-tree; testing uses the same `python3 -m unittest discover -s tests -t . -v` as textkit.",
+          "evidence": "This session's project is not textkit: `ls` shows `inventory/{__init__.py,stock.py}` and `tests/test_stock.py`, no packaging config and no CI config files. Lesson #1's command still worked unchanged (`python3 -m unittest discover -s tests -t . -v`, 5 tests OK), so only the project identity had to be rediscovered."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`, no tests, no packaging or CI config in-tree).",
+          "evidence": "The stored claim \"the current project is the `inventory` repo\" was wrong this session: `ls` showed only `shapes/{__init__.py,square.py}`, no tests/ and no packaging or CI config, so the inventory layout (and lesson #1's test command) did not apply."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`, no tests, no packaging or CI config in-tree).",
+          "evidence": "The stored claim \"the current project is the `inventory` repo\" was wrong this session: `ls` showed only `shapes/{__init__.py,square.py}`, no tests/ and no packaging or CI config, so the inventory layout (and lesson #1's test command) did not apply."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "CI has a license-header gate: line 1 of a new or changed `.py` file must be `# SPDX-License-Identifier: Apache-2.0`. It appears to flag only changed files — `shapes/square.py` also lacks the header yet was not reported — so do not take an unheaded sibling file as proof that no header is needed.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\", while the untouched shapes/square.py (also unheaded) was not flagged; adding the header as line 1 cleared the failure."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "update #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`, no tests, no packaging or CI config in-tree).",
+          "evidence": "The stored claim \"the current project is the `inventory` repo\" was wrong this session: `ls` showed only `shapes/{__init__.py,square.py}`, no tests/ and no packaging or CI config, so the inventory layout (and lesson #1's test command) did not apply."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "CI has a license-header gate: line 1 of a new or changed `.py` file must be `# SPDX-License-Identifier: Apache-2.0`. It appears to flag only changed files — `shapes/square.py` also lacks the header yet was not reported — so do not take an unheaded sibling file as proof that no header is needed.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\", while the untouched shapes/square.py (also unheaded) was not flagged; adding the header as line 1 cleared the failure."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`, no tests, no packaging or CI config in-tree).",
+          "evidence": "The stored claim \"the current project is the `inventory` repo\" was wrong this session: `ls` showed only `shapes/{__init__.py,square.py}`, no tests/ and no packaging or CI config, so the inventory layout (and lesson #1's test command) did not apply."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree).",
+          "evidence": "`ls -a` this session showed only `.git` and `loader/` (with `__init__.py`, `config.py`), a repo not in the stored list, so neither shapes nor inventory instructions applied; I read loader/config.py and loader/__init__.py (empty) to learn the layout."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree).",
+          "evidence": "`ls -a` this session showed only `.git` and `loader/` (with `__init__.py`, `config.py`), a repo not in the stored list, so neither shapes nor inventory instructions applied; I read loader/config.py and loader/__init__.py (empty) to learn the layout."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree).",
+          "evidence": "This session's `ls -a` showed only `.git` and `greet/` (with `__init__.py`, `hello.py`) — a repo layout not in the stored list, so I had to read greet/hello.py to find the single function; adding it saves that rediscovery."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises).",
+          "evidence": "Session in a new billing repo: `ls` showed billing/ + tests/ with no CHANGELOG or CI config, so the known-projects list needed the billing layout added."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises).",
+          "evidence": "Session in a new billing repo: `ls` showed billing/ + tests/ with no CHANGELOG or CI config, so the known-projects list needed the billing layout added."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "This session's repo has no tests/ dir (`ls` shows only `shapes/{__init__.py,square.py}`), so the stored unittest command did not apply; I verified shapes/circle.py with `python3 -c \"from shapes.circle import area; assert abs(area(1)-3.141592653589793) < 1e-12; ...\"`, which passed."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises).",
+          "evidence": "Session in a new billing repo: `ls` showed billing/ + tests/ with no CHANGELOG or CI config, so the known-projects list needed the billing layout added."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        }
+      ]
+    },
+    {
+      "version": 18,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "Billing has tests/ + __init__.py and no packaging/CI config in-tree, and `python3 -m unittest discover -s tests -t . -v` from the repo root was the right and passing command, matching the billing CI job (`APP_ENV=test python3 -m unittest discover -s tests -t .`)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises).",
+          "evidence": "Session in a new billing repo: `ls` showed billing/ + tests/ with no CHANGELOG or CI config, so the known-projects list needed the billing layout added."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        }
+      ]
+    },
+    {
+      "version": 19,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "Billing has tests/ + __init__.py and no packaging/CI config in-tree, and `python3 -m unittest discover -s tests -t . -v` from the repo root was the right and passing command, matching the billing CI job (`APP_ENV=test python3 -m unittest discover -s tests -t .`)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises).",
+          "evidence": "Session in a new billing repo: `ls` showed billing/ + tests/ with no CHANGELOG or CI config, so the known-projects list needed the billing layout added."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        },
+        {
+          "id": 9,
+          "kind": "memory",
+          "text": "In the `strings` repo (only `strings/__init__.py` + `strings/ops.py`, no tests/, no packaging or CI config in-tree), CI has a `mypy/pydocstyle` gate that fails a change unless each new/changed function has full annotations (all args and return) and a docstring; it reports per changed function, not whole-file (pre-existing `shout` and the module-level D100 were not flagged).",
+          "evidence": "CI report \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" after adding reverse_words without annotations; local pydocstyle then still listed only pre-existing module/shout issues."
+        }
+      ]
+    },
+    {
+      "version": 20,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "Billing has tests/ + __init__.py and no packaging/CI config in-tree, and `python3 -m unittest discover -s tests -t . -v` from the repo root was the right and passing command, matching the billing CI job (`APP_ENV=test python3 -m unittest discover -s tests -t .`)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises).",
+          "evidence": "Session in a new billing repo: `ls` showed billing/ + tests/ with no CHANGELOG or CI config, so the known-projects list needed the billing layout added."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        },
+        {
+          "id": 9,
+          "kind": "memory",
+          "text": "In the `strings` repo (only `strings/__init__.py` + `strings/ops.py`, no tests/, no packaging or CI config in-tree), CI has a `mypy/pydocstyle` gate that fails a change unless each new/changed function has full annotations (all args and return) and a docstring; it reports per changed function, not whole-file (pre-existing `shout` and the module-level D100 were not flagged).",
+          "evidence": "CI report \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" after adding reverse_words without annotations; local pydocstyle then still listed only pre-existing module/shout issues."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "Before finishing a change in a repo with no in-tree CI config, check which linters/type-checkers are installed locally (`command -v mypy ruff flake8 pydocstyle`) and run them on the changed file, so an obvious gate fails here rather than in the CI round: full annotations + docstring when mypy and pydocstyle are both present. Treat their findings on lines you did not touch as pre-existing and leave them alone.",
+          "evidence": "In the strings repo I added `reverse_words(s)` with no annotations, then only ran `mypy`/`pydocstyle` (both already on PATH: `command -v mypy pydocstyle` -> /usr/local/bin/mypy) after CI had already failed with \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations ...\". Run locally first, mypy passed straight away and pydocstyle showed only the pre-existing module/shout issues."
+        }
+      ]
+    },
+    {
+      "version": 21,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "Billing has tests/ + __init__.py and no packaging/CI config in-tree, and `python3 -m unittest discover -s tests -t . -v` from the repo root was the right and passing command, matching the billing CI job (`APP_ENV=test python3 -m unittest discover -s tests -t .`)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises), strings (`strings/{__init__.py,ops.py}` only, no tests/packaging/CI config; CI jobs = tests + mypy/pydocstyle).",
+          "evidence": "Session started with `ls -a` + `git ls-files` showing only strings/__init__.py and strings/ops.py, no tests/, no CHANGELOG, no CI config; the strings layout was not in the known-projects list, and its CI turned out to be tests + mypy/pydocstyle only (no release-bot, no license-header gate), so the list needed the new repo."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        },
+        {
+          "id": 9,
+          "kind": "memory",
+          "text": "In the `strings` repo (only `strings/__init__.py` + `strings/ops.py`, no tests/, no packaging or CI config in-tree), CI has a `mypy/pydocstyle` gate that fails a change unless each new/changed function has full annotations (all args and return) and a docstring; it reports per changed function, not whole-file (pre-existing `shout` and the module-level D100 were not flagged).",
+          "evidence": "CI report \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" after adding reverse_words without annotations; local pydocstyle then still listed only pre-existing module/shout issues."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "Before finishing a change in a repo with no in-tree CI config, check which linters/type-checkers are installed locally (`command -v mypy ruff flake8 pydocstyle`) and run them on the changed file, so an obvious gate fails here rather than in the CI round: full annotations + docstring when mypy and pydocstyle are both present. Treat their findings on lines you did not touch as pre-existing and leave them alone.",
+          "evidence": "In the strings repo I added `reverse_words(s)` with no annotations, then only ran `mypy`/`pydocstyle` (both already on PATH: `command -v mypy pydocstyle` -> /usr/local/bin/mypy) after CI had already failed with \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations ...\". Run locally first, mypy passed straight away and pydocstyle showed only the pre-existing module/shout issues."
+        }
+      ]
+    },
+    {
+      "version": 22,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. In a repo that has no tests (shapes), verify a new function instead with an inline `python3 -c` assertion snippet that imports it and checks known values.",
+          "evidence": "Billing has tests/ + __init__.py and no packaging/CI config in-tree, and `python3 -m unittest discover -s tests -t . -v` from the repo root was the right and passing command, matching the billing CI job (`APP_ENV=test python3 -m unittest discover -s tests -t .`)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises), strings (`strings/{__init__.py,ops.py}` only, no tests/packaging/CI config; CI jobs = tests + mypy/pydocstyle).",
+          "evidence": "Session started with `ls -a` + `git ls-files` showing only strings/__init__.py and strings/ops.py, no tests/, no CHANGELOG, no CI config; the strings layout was not in the known-projects list, and its CI turned out to be tests + mypy/pydocstyle only (no release-bot, no license-header gate), so the list needed the new repo."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        },
+        {
+          "id": 9,
+          "kind": "memory",
+          "text": "In the `strings` repo (only `strings/__init__.py` + `strings/ops.py`, no tests/, no packaging or CI config in-tree), CI has a `mypy/pydocstyle` gate that fails a change unless each new/changed function has full annotations (all args and return) and a docstring; it reports per changed function, not whole-file (pre-existing `shout` and the module-level D100 were not flagged).",
+          "evidence": "CI report \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" after adding reverse_words without annotations; local pydocstyle then still listed only pre-existing module/shout issues."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "Before finishing a change in a repo with no in-tree CI config, check which linters/type-checkers are installed locally (`command -v mypy ruff flake8 pydocstyle`) and run them on the changed file, so an obvious gate fails here rather than in the CI round: full annotations + docstring when mypy and pydocstyle are both present. Treat their findings on lines you did not touch as pre-existing and leave them alone.",
+          "evidence": "In the strings repo I added `reverse_words(s)` with no annotations, then only ran `mypy`/`pydocstyle` (both already on PATH: `command -v mypy pydocstyle` -> /usr/local/bin/mypy) after CI had already failed with \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations ...\". Run locally first, mypy passed straight away and pydocstyle showed only the pre-existing module/shout issues."
+        },
+        {
+          "id": 11,
+          "kind": "memory",
+          "text": "The `users` repo (`users/validate.py`, `users/errors.py` with `AppError`, empty `users/__init__.py`; no tests/, no packaging or CI config in-tree) has CI gates `tests` + `error-policy`; raising the repo's own `errors.AppError` satisfied `error-policy`, so prefer the in-repo error class over builtins for new raises there.",
+          "evidence": "Turn in the users repo changed validate_age to raise AppError for negative ages; the CI report came back `✓ tests` / `✓ error-policy`, and AppError (vs the builtin ValueError alternative) was the choice that gate tested."
+        }
+      ]
+    },
+    {
+      "version": 23,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "In the textkit repo, CI requires a CHANGELOG.md bullet under `## Unreleased` for every change (style `- Fixed ...`/`- Added ...`, added in the same turn). This is repo-specific: the inventory repo has no CHANGELOG.md and its CI has no changelog gate, so do not invent one there.",
+          "evidence": "Old wording said \"This project's CI requires a CHANGELOG.md\", which misled me on the inventory Stock fix: `ls -a` shows no CHANGELOG.md and no CI config, and the CI report listed only `tests` and `regression-tests` jobs, none about a changelog. The original evidence itself was the textkit slugify change."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "For a repo with a `tests/` dir and no packaging config (textkit, inventory, billing), test from the repo root with `python3 -m unittest discover -s tests -t . -v`. When a repo has no tests (shapes, users), verify instead with an inline `python3 -c` snippet that imports the function and asserts each behavior, including the error path in a `try/except <the expected class>` so the raised type is checked, not just that something raised.",
+          "evidence": "In the users repo (no tests/) the verification was one `python3 -c` snippet asserting validate_age(0)/validate_age(42) are True and that validate_age(-1) raises inside `except AppError`; CI then came back ✓ tests / ✓ error-policy, so the snippet covered the behavior the gates cared about. The old wording only mentioned asserting known return values, which would not have checked the new raise."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In the inventory repo, CI (`regression-tests` job) fails a bug-fix change unless it includes a test named `test_regression_*` that reproduces the bug.",
+          "evidence": "CI report on the Stock.remove fix in this session failed with \"bug-fix PR contains no test named `test_regression_*`\"; renaming the over-removal test to test_regression_remove_more_than_available_raises fixed it. Spelled out the repo because the same harness memory also serves textkit."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "Project identity changes from session to session and must be re-checked with `ls` before assuming a layout. Known projects: textkit (`textkit/slug.py`), inventory (`inventory/stock.py`, `tests/test_stock.py`), shapes (`shapes/{__init__.py,square.py,circle.py}`), loader (`loader/config.py`, no tests/, no packaging or CI config in-tree), greet (`greet/hello.py` only, no tests/, no packaging or CI config in-tree), billing (`billing/{settings.py,tax.py}` + `tests/test_tax.py`, no CHANGELOG/CI config in-tree; `settings.ENV` defaults to \"dev\" and only a set-but-unknown APP_ENV raises), strings (`strings/{__init__.py,ops.py}` only, no tests/packaging/CI config; CI jobs = tests + mypy/pydocstyle).",
+          "evidence": "Session started with `ls -a` + `git ls-files` showing only strings/__init__.py and strings/ops.py, no tests/, no CHANGELOG, no CI config; the strings layout was not in the known-projects list, and its CI turned out to be tests + mypy/pydocstyle only (no release-bot, no license-header gate), so the list needed the new repo."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "The license-header gate (`# SPDX-License-Identifier: Apache-2.0` as line 1 of a changed .py file) is not repo-wide-global: it fired for `shapes/circle.py`, and the loader repo's CI report (`✓ tests`, `✗ lint`) did not flag headerless `loader/config.py`. Add the header in repos where it has fired (shapes); do not add SPDX headers to a repo whose CI has never shown that gate.",
+          "evidence": "This session's CI report for loader/config.py listed only tests and lint (L001), with no license-header failure, even though line 1 is `import json`. The earlier shapes circle.py report did fail a license-header check. So the old unqualified \"CI has a license-header gate\" wording over-generalized."
+        },
+        {
+          "id": 5,
+          "kind": "memory",
+          "text": "In the loader repo (`loader/config.py` only: no tests/ dir, no packaging, no CI config in-tree), CI lint rule L001 rejects `print`/`warnings.warn` in library code and requires a module logger: `logger = logging.getLogger(__name__)` + `logger.warning(\"...%s\", path)`.",
+          "evidence": "CI report on my first fix: \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\"; I had used `warnings.warn(f\"config file not found: {path}\", stacklevel=2)`. Replacing it with a module-level `logging.getLogger(__name__)` and `logger.warning` made the check pass locally."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In the `greet` repo (greet/hello.py, no tests/, no in-tree CI config) CI runs a `release-bot` job that fails unless the final report of the turn ends with a line `Risk: low|medium|high`; there are no other gates (tests passed with no test files).",
+          "evidence": "CI report after the greet() change was '✓ tests / ✗ release-bot: final report has no `Risk: low|medium|high` line at the end', and grep for release-bot/risk in the repo found no config, so the requirement is external and must be met in the reply."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "When batching edits to one file, include only real changes: the entries are all-or-none, so a no-op entry where old_text == new_text aborts the whole batch and nothing is applied.",
+          "evidence": "My first `edit` on billing/settings.py had two entries, the second a no-op (`TAX_RATE = 0.2` -> same text); the tool returned \"edits[1]: old_text and new_text are the same ... No edit was applied\" and I had to resend the change alone, costing an extra call."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "An import-time error (RuntimeError/ImportError raised while the test module imports) reports as one error and hides later assertion failures, so fix it and rerun the suite before concluding it is green.",
+          "evidence": "In billing, the first run failed only with `RuntimeError: settings: unknown environment None` from billing/settings.py:5, so the `tax(10) == 2.0` mismatch was never evaluated; only after defaulting ENV and rerunning did the suite actually exercise the assertion."
+        },
+        {
+          "id": 9,
+          "kind": "memory",
+          "text": "In the `strings` repo (only `strings/__init__.py` + `strings/ops.py`, no tests/, no packaging or CI config in-tree), CI has a `mypy/pydocstyle` gate that fails a change unless each new/changed function has full annotations (all args and return) and a docstring; it reports per changed function, not whole-file (pre-existing `shout` and the module-level D100 were not flagged).",
+          "evidence": "CI report \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\" after adding reverse_words without annotations; local pydocstyle then still listed only pre-existing module/shout issues."
+        },
+        {
+          "id": 10,
+          "kind": "skill",
+          "text": "Before finishing a change in a repo with no in-tree CI config, check which linters/type-checkers are installed locally (`command -v mypy ruff flake8 pydocstyle`) and run them on the changed file, so an obvious gate fails here rather than in the CI round: full annotations + docstring when mypy and pydocstyle are both present. Treat their findings on lines you did not touch as pre-existing and leave them alone.",
+          "evidence": "In the strings repo I added `reverse_words(s)` with no annotations, then only ran `mypy`/`pydocstyle` (both already on PATH: `command -v mypy pydocstyle` -> /usr/local/bin/mypy) after CI had already failed with \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations ...\". Run locally first, mypy passed straight away and pydocstyle showed only the pre-existing module/shout issues."
+        },
+        {
+          "id": 11,
+          "kind": "memory",
+          "text": "The `users` repo (`users/validate.py`, `users/errors.py` with `AppError`, empty `users/__init__.py`; no tests/, no packaging or CI config in-tree) has CI gates `tests` + `error-policy`; raising the repo's own `errors.AppError` satisfied `error-policy`, so prefer the in-repo error class over builtins for new raises there.",
+          "evidence": "Turn in the users repo changed validate_age to raise AppError for negative ages; the CI report came back `✓ tests` / `✓ error-policy`, and AppError (vs the builtin ValueError alternative) was the choice that gate tested."
+        }
+      ]
+    }
+  ]
+}

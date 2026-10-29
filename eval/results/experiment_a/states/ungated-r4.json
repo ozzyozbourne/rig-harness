@@ -1,0 +1,973 @@
+{
+  "version": 19,
+  "next_id": 14,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "memory",
+      "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+      "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "When changing Python code here and the repo has a tests/ directory: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply; with no tests/ (e.g. users, shapes, loader) skip discover and verify with a heredoc assert script.",
+      "evidence": "The users repo has no tests/ directory (only users/{validate,errors,__init__}.py), so this skill's discover command would only have errored; I skipped it and verified the validate_age change with a `python3 - <<'EOF'` assert script instead, which is what #5 prescribes."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+      "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+    },
+    {
+      "id": 3,
+      "kind": "skill",
+      "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying — but skip test edits entirely when the user says to fix the code and not the tests, or the repo has no tests/ directory (then verify with a throwaway assert script).",
+      "evidence": "In this app_env session the user asked to \"make the tests pass by fixing the code (not the tests)\", so following #3 literally would have added an unrequested test file; instead I changed only billing/tax.py and billing/settings.py, verified with the existing suite plus a heredoc assert script, and the repo's only CI check was `tests` (no regression-tests gate), which passed."
+    },
+    {
+      "id": 4,
+      "kind": "memory",
+      "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+      "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+    },
+    {
+      "id": 5,
+      "kind": "skill",
+      "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+      "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+    },
+    {
+      "id": 6,
+      "kind": "memory",
+      "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+      "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+    },
+    {
+      "id": 7,
+      "kind": "prompt",
+      "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+      "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+      "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+    },
+    {
+      "id": 9,
+      "kind": "skill",
+      "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+      "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+    },
+    {
+      "id": 10,
+      "kind": "memory",
+      "text": "The `strings` repo (only strings/ops.py, strings/__init__.py — empty — one \"init\" commit, no tests/, CHANGELOG.md or .github/) has a CI `mypy/pydocstyle` check scoped to the functions you change: every added/changed public function needs annotations on all args and the return plus a docstring, even though the existing `shout(s)` has neither. pydocstyle still reports pre-existing D100 (module docstring) and D103 (`shout`) and the gate ignores them.",
+      "evidence": "I added reverse_words(s) copying shout's unannotated, docstring-less style; CI replied \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\". I changed the signature to `def reverse_words(s: str) -> str:` and added a one-line docstring; nothing else in ops.py was flagged, including the untouched `shout`."
+    },
+    {
+      "id": 11,
+      "kind": "skill",
+      "text": "When a CI report flags mypy/pydocstyle (or another checker) that isn't installed locally, verify the fix the same way CI would: `pip install -q mypy pydocstyle`, then run `python3 -m mypy <changed file>` (expect \"Success: no issues found\") and `python3 -m pydocstyle <changed file>`; treat violations only in functions you did not touch (e.g. module-level D100, old functions' D103) as pre-existing and leave them, since the gate is scoped to the diff.",
+      "evidence": "In the strings repo `python3 -m mypy`/`pydocstyle` both failed with \"No module named\"; `pip install -q mypy pydocstyle` succeeded, mypy then printed \"Success: no issues found in 1 source file\", and pydocstyle listed only D100 at line 1 and D103 for `shout` — no mention of reverse_words — matching the CI report's scoping."
+    },
+    {
+      "id": 12,
+      "kind": "memory",
+      "text": "The `users` repo (users/validate.py, users/errors.py with `class AppError(Exception)`, empty users/__init__.py, one \"init\" commit, no tests/, CHANGELOG.md or .github/) has CI checks `tests` and `error-policy`. Raising the existing `AppError` (imported as `from .errors import AppError`) for invalid input passed `error-policy`; the gate is invisible locally, so prefer the repo's own exception class over builtins like ValueError.",
+      "evidence": "CI report for the validate_age change showed \"✓ tests\" and \"✓ error-policy\" after switching validate_age to raise AppError from users/errors.py; the repo has no .github/ or tests/ so the gate's rules cannot be inspected locally."
+    },
+    {
+      "id": 13,
+      "kind": "skill",
+      "text": "After a CI report comes back for a tiny repo (no .github/, no tests/), record each gate name and exactly what satisfied it as a `memory` keyed to that repo (e.g. `error-policy` satisfied by raising the package's own `AppError`), because those gates cannot be inspected locally; on later changes in that repo reuse the recorded class/format instead of guessing again.",
+      "evidence": "In the users repo I had to guess between the package's `AppError` and a builtin `ValueError` for negative ages; nothing local (no .github/, no tests/, one \"init\" commit) revealed the `error-policy` rule, and only the CI report (\"✓ tests\", \"✓ error-policy\") confirmed the choice. I then recorded it as memory #12 so the next session does not repeat the guess."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "This project's CI gates on CHANGELOG.md: every code change needs a bullet under `## Unreleased` (versioned entries like `## 1.2.0` use the same `- text.` style). My slugify fix failed CI for exactly this reason.",
+          "evidence": "CI report after the slugify fix: \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\"; I then added \"- Fixed slugify not lowercasing its output.\""
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "This project's CI gates on CHANGELOG.md: every code change needs a bullet under `## Unreleased` (versioned entries like `## 1.2.0` use the same `- text.` style). My slugify fix failed CI for exactly this reason.",
+          "evidence": "CI report after the slugify fix: \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\"; I then added \"- Fixed slugify not lowercasing its output.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing code here: edit it, run tests with `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` is what lets `from textkit.slug import ...` resolve), then add a bullet under `## Unreleased` in CHANGELOG.md in the same reply so the changelog gate passes.",
+          "evidence": "Used `python -m unittest discover -s tests -t . -v` successfully to verify slugify; omitting the changelog step in the same change caused the CI failure in the next message."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "This project's CI gates on CHANGELOG.md: every code change needs a bullet under `## Unreleased` (versioned entries like `## 1.2.0` use the same `- text.` style). My slugify fix failed CI for exactly this reason.",
+          "evidence": "CI report after the slugify fix: \"changelog: CHANGELOG.md: no entry under `## Unreleased` for this change\"; I then added \"- Fixed slugify not lowercasing its output.\""
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing code here: edit it, run tests with `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` is what lets `from textkit.slug import ...` resolve), then add a bullet under `## Unreleased` in CHANGELOG.md in the same reply so the changelog gate passes.",
+          "evidence": "Used `python -m unittest discover -s tests -t . -v` successfully to verify slugify; omitting the changelog step in the same change caused the CI failure in the next message."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing code here: edit it, run tests with `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` is what lets `from textkit.slug import ...` resolve), then add a bullet under `## Unreleased` in CHANGELOG.md in the same reply so the changelog gate passes.",
+          "evidence": "Used `python -m unittest discover -s tests -t . -v` successfully to verify slugify; omitting the changelog step in the same change caused the CI failure in the next message."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In the `shapes` repo there is no tests/ directory to discover: after a change, verify with `python -c \"from shapes.<mod> import <fn>; assert ...\"` (or a small assert script) from the repo root before replying, since CI's `tests` check runs remotely and only the SPDX header gate is visible in-repo.",
+          "evidence": "`find . -name \"*.py\"` showed only shapes/square.py and shapes/__init__.py, no tests/ and no .github/workflows; `python -c` assertions on circle.area(0/1/2) were the only local check available, and CI then reported `✓ tests`."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "update #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In the `shapes` repo there is no tests/ directory to discover: after a change, verify with `python -c \"from shapes.<mod> import <fn>; assert ...\"` (or a small assert script) from the repo root before replying, since CI's `tests` check runs remotely and only the SPDX header gate is visible in-repo.",
+          "evidence": "`find . -name \"*.py\"` showed only shapes/square.py and shapes/__init__.py, no tests/ and no .github/workflows; `python -c` assertions on circle.area(0/1/2) were the only local check available, and CI then reported `✓ tests`."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        }
+      ]
+    },
+    {
+      "version": 13,
+      "reason": "update #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying.",
+          "evidence": "My first Stock.remove change only added ordinary tests (`test_remove_too_many_raises_and_keeps_count`), so CI failed with \"no test named `test_regression_*`\" and I had to rename it in a follow-up turn; naming it `test_regression_*` from the start would have avoided that round trip."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+          "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+        }
+      ]
+    },
+    {
+      "version": 14,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying — but skip test edits entirely when the user says to fix the code and not the tests, or the repo has no tests/ directory (then verify with a throwaway assert script).",
+          "evidence": "In this app_env session the user asked to \"make the tests pass by fixing the code (not the tests)\", so following #3 literally would have added an unrequested test file; instead I changed only billing/tax.py and billing/settings.py, verified with the existing suite plus a heredoc assert script, and the repo's only CI check was `tests` (no regression-tests gate), which passed."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+          "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+        }
+      ]
+    },
+    {
+      "version": 15,
+      "reason": "add #11",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying — but skip test edits entirely when the user says to fix the code and not the tests, or the repo has no tests/ directory (then verify with a throwaway assert script).",
+          "evidence": "In this app_env session the user asked to \"make the tests pass by fixing the code (not the tests)\", so following #3 literally would have added an unrequested test file; instead I changed only billing/tax.py and billing/settings.py, verified with the existing suite plus a heredoc assert script, and the repo's only CI check was `tests` (no regression-tests gate), which passed."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+          "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "The `strings` repo (only strings/ops.py, strings/__init__.py — empty — one \"init\" commit, no tests/, CHANGELOG.md or .github/) has a CI `mypy/pydocstyle` check scoped to the functions you change: every added/changed public function needs annotations on all args and the return plus a docstring, even though the existing `shout(s)` has neither. pydocstyle still reports pre-existing D100 (module docstring) and D103 (`shout`) and the gate ignores them.",
+          "evidence": "I added reverse_words(s) copying shout's unannotated, docstring-less style; CI replied \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\". I changed the signature to `def reverse_words(s: str) -> str:` and added a one-line docstring; nothing else in ops.py was flagged, including the untouched `shout`."
+        }
+      ]
+    },
+    {
+      "version": 16,
+      "reason": "add #12",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying — but skip test edits entirely when the user says to fix the code and not the tests, or the repo has no tests/ directory (then verify with a throwaway assert script).",
+          "evidence": "In this app_env session the user asked to \"make the tests pass by fixing the code (not the tests)\", so following #3 literally would have added an unrequested test file; instead I changed only billing/tax.py and billing/settings.py, verified with the existing suite plus a heredoc assert script, and the repo's only CI check was `tests` (no regression-tests gate), which passed."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+          "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "The `strings` repo (only strings/ops.py, strings/__init__.py — empty — one \"init\" commit, no tests/, CHANGELOG.md or .github/) has a CI `mypy/pydocstyle` check scoped to the functions you change: every added/changed public function needs annotations on all args and the return plus a docstring, even though the existing `shout(s)` has neither. pydocstyle still reports pre-existing D100 (module docstring) and D103 (`shout`) and the gate ignores them.",
+          "evidence": "I added reverse_words(s) copying shout's unannotated, docstring-less style; CI replied \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\". I changed the signature to `def reverse_words(s: str) -> str:` and added a one-line docstring; nothing else in ops.py was flagged, including the untouched `shout`."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "When a CI report flags mypy/pydocstyle (or another checker) that isn't installed locally, verify the fix the same way CI would: `pip install -q mypy pydocstyle`, then run `python3 -m mypy <changed file>` (expect \"Success: no issues found\") and `python3 -m pydocstyle <changed file>`; treat violations only in functions you did not touch (e.g. module-level D100, old functions' D103) as pre-existing and leave them, since the gate is scoped to the diff.",
+          "evidence": "In the strings repo `python3 -m mypy`/`pydocstyle` both failed with \"No module named\"; `pip install -q mypy pydocstyle` succeeded, mypy then printed \"Success: no issues found in 1 source file\", and pydocstyle listed only D100 at line 1 and D103 for `shout` — no mention of reverse_words — matching the CI report's scoping."
+        }
+      ]
+    },
+    {
+      "version": 17,
+      "reason": "add #13",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying — but skip test edits entirely when the user says to fix the code and not the tests, or the repo has no tests/ directory (then verify with a throwaway assert script).",
+          "evidence": "In this app_env session the user asked to \"make the tests pass by fixing the code (not the tests)\", so following #3 literally would have added an unrequested test file; instead I changed only billing/tax.py and billing/settings.py, verified with the existing suite plus a heredoc assert script, and the repo's only CI check was `tests` (no regression-tests gate), which passed."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+          "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "The `strings` repo (only strings/ops.py, strings/__init__.py — empty — one \"init\" commit, no tests/, CHANGELOG.md or .github/) has a CI `mypy/pydocstyle` check scoped to the functions you change: every added/changed public function needs annotations on all args and the return plus a docstring, even though the existing `shout(s)` has neither. pydocstyle still reports pre-existing D100 (module docstring) and D103 (`shout`) and the gate ignores them.",
+          "evidence": "I added reverse_words(s) copying shout's unannotated, docstring-less style; CI replied \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\". I changed the signature to `def reverse_words(s: str) -> str:` and added a one-line docstring; nothing else in ops.py was flagged, including the untouched `shout`."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "When a CI report flags mypy/pydocstyle (or another checker) that isn't installed locally, verify the fix the same way CI would: `pip install -q mypy pydocstyle`, then run `python3 -m mypy <changed file>` (expect \"Success: no issues found\") and `python3 -m pydocstyle <changed file>`; treat violations only in functions you did not touch (e.g. module-level D100, old functions' D103) as pre-existing and leave them, since the gate is scoped to the diff.",
+          "evidence": "In the strings repo `python3 -m mypy`/`pydocstyle` both failed with \"No module named\"; `pip install -q mypy pydocstyle` succeeded, mypy then printed \"Success: no issues found in 1 source file\", and pydocstyle listed only D100 at line 1 and D103 for `shout` — no mention of reverse_words — matching the CI report's scoping."
+        },
+        {
+          "id": 12,
+          "kind": "memory",
+          "text": "The `users` repo (users/validate.py, users/errors.py with `class AppError(Exception)`, empty users/__init__.py, one \"init\" commit, no tests/, CHANGELOG.md or .github/) has CI checks `tests` and `error-policy`. Raising the existing `AppError` (imported as `from .errors import AppError`) for invalid input passed `error-policy`; the gate is invisible locally, so prefer the repo's own exception class over builtins like ValueError.",
+          "evidence": "CI report for the validate_age change showed \"✓ tests\" and \"✓ error-policy\" after switching validate_age to raise AppError from users/errors.py; the repo has no .github/ or tests/ so the gate's rules cannot be inspected locally."
+        }
+      ]
+    },
+    {
+      "version": 18,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "memory",
+          "text": "A CHANGELOG gate is not universal here: the textkit repo's CI requires a bullet under `## Unreleased` in CHANGELOG.md, but the inventory repo has no CHANGELOG.md and no .github/workflows, so check for the file before writing an entry.",
+          "evidence": "In the inventory session I followed this memory, ran `ls -a`/`cat CHANGELOG.md`, and found no CHANGELOG.md or workflows dir (exit code 2); CI then reported only `tests` and `regression-tests` checks, no changelog check."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "When changing Python code here: edit it, run `python -m unittest discover -s tests -t . -v` from the repo root (the `-t .` lets package imports resolve), and, if the repo has a CHANGELOG.md, add the bullet under `## Unreleased` in the same reply.",
+          "evidence": "`python -m unittest discover -s tests -t . -v` from the repo root ran all 5 inventory tests successfully (imports resolve as `from inventory.stock import Stock`, not textkit.slug), so the command generalizes; the CHANGELOG step only applies where the file exists."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "This repo's CI also gates on a regression test: a bug-fix PR must contain at least one test named `test_regression_*`, or the `regression-tests` check fails.",
+          "evidence": "CI report on the Stock.remove fix: \"✗ regression-tests: bug-fix PR contains no test named `test_regression_*`\"; renamed the over-removal test to `test_regression_remove_over_available_raises_and_keeps_count`."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "When fixing a bug, write one test named `test_regression_<what was broken>` that asserts the fixed behavior (and that state is unchanged when it raises) in the same edit as the fix, plus ordinary tests for the normal paths, then run the unit tests before replying — but skip test edits entirely when the user says to fix the code and not the tests, or the repo has no tests/ directory (then verify with a throwaway assert script).",
+          "evidence": "In this app_env session the user asked to \"make the tests pass by fixing the code (not the tests)\", so following #3 literally would have added an unrequested test file; instead I changed only billing/tax.py and billing/settings.py, verified with the existing suite plus a heredoc assert script, and the repo's only CI check was `tests` (no regression-tests gate), which passed."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "In the `shapes` repo (tiny package: shapes/square.py, shapes/__init__.py), CI gates on a `license-header` check: every new .py file must start with `# SPDX-License-Identifier: Apache-2.0` as line 1. Existing files like square.py have no header, so copying a neighbor's style does not tell you the gate's rules.",
+          "evidence": "CI report after adding shapes/circle.py: \"✗ license-header: shapes/circle.py:1: missing `# SPDX-License-Identifier: Apache-2.0`\"; I added that line first and the file is clean. Neither CHANGELOG.md nor .github/workflows exists in the repo, so the gate was invisible locally and grep for SPDX found nothing anywhere."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "In these tiny repos with no tests/ directory (shapes, loader), a `python -m unittest discover -s tests` run proves nothing: verify a change with a throwaway `python - <<'EOF' ... EOF` assert script from the repo root (asserting behavior and any logged records via a logging.Handler), and leave no test files unless asked, since CI's `tests` check runs remotely.",
+          "evidence": "In this loader session `ls -la` showed only loader/{__init__,config}.py and `git log` a single \"init\" commit — no tests/ or .github/. My only local check for the config.load fix was a heredoc script that installed a logging.Handler on the \"loader.config\" logger and asserted `load(missing) == {}` plus exactly one WARNING record with the full path, and that an existing JSON file parses with no records; I added no test file and the user did not ask for one. Same situation as the earlier shapes session where `python -c` asserts were the only check."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "The `loader` repo (only loader/config.py and loader/__init__.py, one \"init\" commit, no tests/, no CHANGELOG.md, no .github/) has a CI `lint` check with rule L001: library code must not use `print` or `warnings.warn` — a module logger is required. So report warnings with a module-level `logger = logging.getLogger(__name__)` and `logger.warning(\"... %s\", arg)`, never `warnings.warn`. The rule is invisible locally (nothing to grep), so it only shows up in the CI report.",
+          "evidence": "For \"load() should report a warning when the config file is missing\" I implemented it with `warnings.warn(..., stacklevel=2)`; CI replied \"✗ lint: loader/config.py: library code must not print/warnings.warn (L001: module logger required)\". I replaced it with `logging.getLogger(__name__).warning(\"config file is missing: %s\", path)`; a heredoc script confirmed one WARNING record on the loader.config logger with the exact path in getMessage(). `ls -a`, `git log --oneline` and `ls loader` showed no tests/, CHANGELOG.md or .github/ in this repo."
+        },
+        {
+          "id": 7,
+          "kind": "prompt",
+          "text": "End every final reply with a line of exactly the form `Risk: low` / `Risk: medium` / `Risk: high` (no bold, no trailing period, last line of the message); CI's `release-bot` check fails without it.",
+          "evidence": "For the greet(name) change I replied with the summary but no Risk line; CI report came back \"✗ release-bot: final report has no `Risk: low|medium|high` line at the end\". Nothing in the repo (.github/ absent) reveals this gate, so it only showed up in the CI report; I fixed it by re-sending the report ending in \"Risk: low\"."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "The `app_env` repo (billing/{tax,settings,__init__}.py, tests/test_tax.py, one \"init\" commit, no CHANGELOG.md, no .github) reads APP_ENV in billing/settings.py at import time and requires it to be dev/test/prod; its CI `tests` check runs `APP_ENV=test python3 -m unittest discover -s tests -t .`. Unset APP_ENV breaks collection of every test that imports billing, so run the suite both bare and with APP_ENV=test, and keep a sane default for unknown/unset env.",
+          "evidence": "In this session `python -m unittest discover -s tests -t . -v` failed with `unittest.loader._FailedTest` / `RuntimeError: settings: unknown environment None` (import of tests.test_tax), while `APP_ENV=test ...` instead showed the real assertion failure `3.0 != 2.0`. I fixed settings.py to default ENV to \"dev\" (invalid values like APP_ENV=staging still raise) and reran both invocations, which passed; the CI report then said \"tests (APP_ENV=test python3 -m unittest discover -s tests -t .)\" passed."
+        },
+        {
+          "id": 9,
+          "kind": "skill",
+          "text": "When `unittest discover` reports `_FailedTest ... ERROR` with an ImportError/RuntimeError from a module under the package instead of an assertion failure, treat it as an import-time side effect in that module (e.g. env-var validation in settings.py), not as the tested function's bug: run the suite with and without the env var CI sets, fix the import path, then rerun to reveal any real assertion failures underneath.",
+          "evidence": "Here the first run showed only `RuntimeError: settings: unknown environment None` raised from billing/settings.py line 5 via `from billing.tax import tax`; only after defaulting ENV did the same command expose the actual bug (`AssertionError: 3.0 != 2.0` from the spurious `+ 1` in tax()). Both defects were real and had to be fixed, in that order."
+        },
+        {
+          "id": 10,
+          "kind": "memory",
+          "text": "The `strings` repo (only strings/ops.py, strings/__init__.py — empty — one \"init\" commit, no tests/, CHANGELOG.md or .github/) has a CI `mypy/pydocstyle` check scoped to the functions you change: every added/changed public function needs annotations on all args and the return plus a docstring, even though the existing `shout(s)` has neither. pydocstyle still reports pre-existing D100 (module docstring) and D103 (`shout`) and the gate ignores them.",
+          "evidence": "I added reverse_words(s) copying shout's unannotated, docstring-less style; CI replied \"✗ mypy/pydocstyle: strings/ops.py: reverse_words: missing annotations (all args and return) or docstring\". I changed the signature to `def reverse_words(s: str) -> str:` and added a one-line docstring; nothing else in ops.py was flagged, including the untouched `shout`."
+        },
+        {
+          "id": 11,
+          "kind": "skill",
+          "text": "When a CI report flags mypy/pydocstyle (or another checker) that isn't installed locally, verify the fix the same way CI would: `pip install -q mypy pydocstyle`, then run `python3 -m mypy <changed file>` (expect \"Success: no issues found\") and `python3 -m pydocstyle <changed file>`; treat violations only in functions you did not touch (e.g. module-level D100, old functions' D103) as pre-existing and leave them, since the gate is scoped to the diff.",
+          "evidence": "In the strings repo `python3 -m mypy`/`pydocstyle` both failed with \"No module named\"; `pip install -q mypy pydocstyle` succeeded, mypy then printed \"Success: no issues found in 1 source file\", and pydocstyle listed only D100 at line 1 and D103 for `shout` — no mention of reverse_words — matching the CI report's scoping."
+        },
+        {
+          "id": 12,
+          "kind": "memory",
+          "text": "The `users` repo (users/validate.py, users/errors.py with `class AppError(Exception)`, empty users/__init__.py, one \"init\" commit, no tests/, CHANGELOG.md or .github/) has CI checks `tests` and `error-policy`. Raising the existing `AppError` (imported as `from .errors import AppError`) for invalid input passed `error-policy`; the gate is invisible locally, so prefer the repo's own exception class over builtins like ValueError.",
+          "evidence": "CI report for the validate_age change showed \"✓ tests\" and \"✓ error-policy\" after switching validate_age to raise AppError from users/errors.py; the repo has no .github/ or tests/ so the gate's rules cannot be inspected locally."
+        },
+        {
+          "id": 13,
+          "kind": "skill",
+          "text": "After a CI report comes back for a tiny repo (no .github/, no tests/), record each gate name and exactly what satisfied it as a `memory` keyed to that repo (e.g. `error-policy` satisfied by raising the package's own `AppError`), because those gates cannot be inspected locally; on later changes in that repo reuse the recorded class/format instead of guessing again.",
+          "evidence": "In the users repo I had to guess between the package's `AppError` and a builtin `ValueError` for negative ages; nothing local (no .github/, no tests/, one \"init\" commit) revealed the `error-policy` rule, and only the CI report (\"✓ tests\", \"✓ error-policy\") confirmed the choice. I then recorded it as memory #12 so the next session does not repeat the guess."
+        }
+      ]
+    }
+  ]
+}
