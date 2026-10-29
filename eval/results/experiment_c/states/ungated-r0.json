@@ -1,0 +1,511 @@
+{
+  "version": 13,
+  "next_id": 8,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "skill",
+      "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+      "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+      "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.",
+      "evidence": "This chain task: I ran `python3 /tmp/prune.py; sed -i 's/.*/PLACEHOLDER/' /dev/null 2>/dev/null; true`, which the review flagged as breaking the \"read files only with cat, in full\" instruction; the sed was a pointless no-op bundled onto a hygiene command."
+    },
+    {
+      "id": 3,
+      "kind": "skill",
+      "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+      "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+    },
+    {
+      "id": 4,
+      "kind": "prompt",
+      "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number) alongside a store update, answer with that fact alone (\"chunk_5 last line: 0319\") — print no store dump and no \"Store now: ...\" line at all; the store belongs in the context note, not in the reply.",
+      "evidence": "Despite lesson #4 already existing, every reply this session opened with a full store dump (\"Store now: k0=8X3XJPTP, k3=VOTGJJNI, k4=5Q40880G, k7=TQLYUVTN, k8=FFWQ929R\") although the user asked \"Reply briefly\" and only wanted the chunk's last line number; the dumped text then sat in the context for all later reads."
+    },
+    {
+      "id": 5,
+      "kind": "skill",
+      "text": "Keep the context-prune helper on disk once (/tmp/prune.py: split on ^(?=\\[\\[CTX ), drop big blocks and the previous [[CTX new note]] block, append the note from sys.argv[1], print size), call it as `python3 /tmp/prune.py \"<note>\"`, and run it once per TWO read files rather than once per file, with the note already final — each run forces a full re-read of the context file and a fresh model call, so per-file pruning costs more than it saves. Keep the note to bare `id/severity` pairs plus the next file name.",
+      "evidence": "This chain task: 8 `cat`s + 6 prunes + 1 write = 15 tool calls and 153k tokens, ~19k per file, because every file got its own prune turn (12 context edits total) even though the file stayed under ~4k chars; no prune was needed at all once the note was the only thing retained."
+    },
+    {
+      "id": 6,
+      "kind": "memory",
+      "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+      "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "In a prune script, never drop a block by size alone if it may hold the user's task/format instructions: skip `[[CTX ...] user]` blocks unconditionally and keep their rules word for word (output format, ordering, total line, last line), since the final answer must reproduce them exactly.",
+      "evidence": "The v7 report task demanded exact lines (`REPORT v7`, per-incident `ID | severity` sorted desc, `TOTAL <sum>`, `-- end of report --`, nothing else). My prune dropped every block over 3000 chars, which would have deleted the user's instruction block had it been larger; I only got away with it because that block was ~1k chars (file went 55845 -> 1657 and still held the rules)."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data.",
+          "evidence": "Command run this session: `cat t7n33kfn.log | sed -n '1,0p'` — the user had required reading data files only with `cat <file>`, one per command, and I piped one into sed out of habit."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data.",
+          "evidence": "Command run this session: `cat t7n33kfn.log | sed -n '1,0p'` — the user had required reading data files only with `cat <file>`, one per command, and I piped one into sed out of habit."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data.",
+          "evidence": "Command run this session: `cat t7n33kfn.log | sed -n '1,0p'` — the user had required reading data files only with `cat <file>`, one per command, and I piped one into sed out of habit."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number), answer with just that fact plus the minimum confirmation of stored keys — do not re-dump the full key-value store into every reply; the store belongs in the context note, not repeated in each message.",
+          "evidence": "Every turn I re-printed the whole 6-8 key store (\"Store now: k0=..., k1=...\") although the user asked only for the chunk's last line number and had asked for brief replies; that duplicated text stayed in context and had to be pruned/shortened to markers."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data.",
+          "evidence": "Command run this session: `cat t7n33kfn.log | sed -n '1,0p'` — the user had required reading data files only with `cat <file>`, one per command, and I piped one into sed out of habit."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number), answer with just that fact plus the minimum confirmation of stored keys — do not re-dump the full key-value store into every reply; the store belongs in the context note, not repeated in each message.",
+          "evidence": "Every turn I re-printed the whole 6-8 key store (\"Store now: k0=..., k1=...\") although the user asked only for the chunk's last line number and had asked for brief replies; that duplicated text stayed in context and had to be pruned/shortened to markers."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (e.g. write /tmp/prune.py that splits on ^(?=\\[\\[CTX ), drops blocks with len>3000 and the previous [[CTX new note]] block, appends the passed note text, prints the new size) and call it as `python3 /tmp/prune.py \"<note>\"` each time; do not re-emit the python code inline in every prune call.",
+          "evidence": "This 8-file chain used 16 tool calls / 146k tokens for only 8 required `cat` calls: 8 of the calls were prunes that each re-wrote the same ~600-token split/drop/append script plus the ever-growing chain note text, costing roughly as much as the data reads they were trimming."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "update #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data.",
+          "evidence": "Command run this session: `cat t7n33kfn.log | sed -n '1,0p'` — the user had required reading data files only with `cat <file>`, one per command, and I piped one into sed out of habit."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number), answer with just that fact plus the minimum confirmation of stored keys — do not re-dump the full key-value store into every reply; the store belongs in the context note, not repeated in each message.",
+          "evidence": "Every turn I re-printed the whole 6-8 key store (\"Store now: k0=..., k1=...\") although the user asked only for the chunk's last line number and had asked for brief replies; that duplicated text stayed in context and had to be pruned/shortened to markers."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (e.g. write /tmp/prune.py that splits on ^(?=\\[\\[CTX ), drops blocks with len>3000 and the previous [[CTX new note]] block, appends the passed note text, prints the new size) and call it as `python3 /tmp/prune.py \"<note>\"` each time; do not re-emit the python code inline in every prune call.",
+          "evidence": "This 8-file chain used 16 tool calls / 146k tokens for only 8 required `cat` calls: 8 of the calls were prunes that each re-wrote the same ~600-token split/drop/append script plus the ever-growing chain note text, costing roughly as much as the data reads they were trimming."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+          "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "update #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.",
+          "evidence": "This chain task: I ran `python3 /tmp/prune.py; sed -i 's/.*/PLACEHOLDER/' /dev/null 2>/dev/null; true`, which the review flagged as breaking the \"read files only with cat, in full\" instruction; the sed was a pointless no-op bundled onto a hygiene command."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number), answer with just that fact plus the minimum confirmation of stored keys — do not re-dump the full key-value store into every reply; the store belongs in the context note, not repeated in each message.",
+          "evidence": "Every turn I re-printed the whole 6-8 key store (\"Store now: k0=..., k1=...\") although the user asked only for the chunk's last line number and had asked for brief replies; that duplicated text stayed in context and had to be pruned/shortened to markers."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (e.g. write /tmp/prune.py that splits on ^(?=\\[\\[CTX ), drops blocks with len>3000 and the previous [[CTX new note]] block, appends the passed note text, prints the new size) and call it as `python3 /tmp/prune.py \"<note>\"` each time; do not re-emit the python code inline in every prune call.",
+          "evidence": "This 8-file chain used 16 tool calls / 146k tokens for only 8 required `cat` calls: 8 of the calls were prunes that each re-wrote the same ~600-token split/drop/append script plus the ever-growing chain note text, costing roughly as much as the data reads they were trimming."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+          "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "update #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.",
+          "evidence": "This chain task: I ran `python3 /tmp/prune.py; sed -i 's/.*/PLACEHOLDER/' /dev/null 2>/dev/null; true`, which the review flagged as breaking the \"read files only with cat, in full\" instruction; the sed was a pointless no-op bundled onto a hygiene command."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number), answer with just that fact plus the minimum confirmation of stored keys — do not re-dump the full key-value store into every reply; the store belongs in the context note, not repeated in each message.",
+          "evidence": "Every turn I re-printed the whole 6-8 key store (\"Store now: k0=..., k1=...\") although the user asked only for the chunk's last line number and had asked for brief replies; that duplicated text stayed in context and had to be pruned/shortened to markers."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (e.g. /tmp/prune.py that splits on ^(?=\\[\\[CTX ), drops blocks with len>3000 and the previous [[CTX new note]] block, appends the note passed as sys.argv[1], prints the new size) and call it as `python3 /tmp/prune.py \"<note>\"` — write the argv version on the first attempt, never a hardcoded note. Keep that note to bare `KEY_n=value` pairs (plus the next file name): no source filenames, no \"verified\" tags, one prune per file, since every context edit costs a full re-read of the file on the next call.",
+          "evidence": "10-file chain cost 205,572 tokens / 20 context edits for ~10 small `cat`s: I first wrote /tmp/prune.py with the note hardcoded, then had to rewrite it argv-form and commit two prunes for one file, and my note grew to ~1.5KB by carrying filenames and \"(verified this read)\" tags — each edit forces the next call to re-read the whole file (~30KB before prune), so those extras were paid for repeatedly."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+          "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "update #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.",
+          "evidence": "This chain task: I ran `python3 /tmp/prune.py; sed -i 's/.*/PLACEHOLDER/' /dev/null 2>/dev/null; true`, which the review flagged as breaking the \"read files only with cat, in full\" instruction; the sed was a pointless no-op bundled onto a hygiene command."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number), answer with just that fact plus the minimum confirmation of stored keys — do not re-dump the full key-value store into every reply; the store belongs in the context note, not repeated in each message.",
+          "evidence": "Every turn I re-printed the whole 6-8 key store (\"Store now: k0=..., k1=...\") although the user asked only for the chunk's last line number and had asked for brief replies; that duplicated text stayed in context and had to be pruned/shortened to markers."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (/tmp/prune.py: split on ^(?=\\[\\[CTX ), drop blocks with len>3000 and the previous [[CTX new note]] block, append the note from sys.argv[1], print the size), call it as `python3 /tmp/prune.py \"<note>\"`, and run it exactly ONCE per file, at the end of the turn, with the note already final — every additional edit forces a full re-read of the context file. Keep the note to bare `KEY_n=value` pairs plus the next file name: no filenames, no \"verified\" tags, no lists of deleted keys.",
+          "evidence": "This session's chunk_3 turn cost 5 tool calls for one file (prune, ls -l chunk_*.txt, cat, prune, prune) and overall 24 context edits for 7 cat calls; sizes walked 1319 -> 2097 -> ... -> 9843 chars because each turn re-committed its note, and 381k tokens were spent on ~7 x 7k-token reads. The chunk_4+ turns that used one compact note line (0=0319 1=0319 ...) needed a single prune."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+          "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "update #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.",
+          "evidence": "This chain task: I ran `python3 /tmp/prune.py; sed -i 's/.*/PLACEHOLDER/' /dev/null 2>/dev/null; true`, which the review flagged as breaking the \"read files only with cat, in full\" instruction; the sed was a pointless no-op bundled onto a hygiene command."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number) alongside a store update, answer with that fact alone (\"chunk_5 last line: 0319\") — print no store dump and no \"Store now: ...\" line at all; the store belongs in the context note, not in the reply.",
+          "evidence": "Despite lesson #4 already existing, every reply this session opened with a full store dump (\"Store now: k0=8X3XJPTP, k3=VOTGJJNI, k4=5Q40880G, k7=TQLYUVTN, k8=FFWQ929R\") although the user asked \"Reply briefly\" and only wanted the chunk's last line number; the dumped text then sat in the context for all later reads."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (/tmp/prune.py: split on ^(?=\\[\\[CTX ), drop blocks with len>3000 and the previous [[CTX new note]] block, append the note from sys.argv[1], print the size), call it as `python3 /tmp/prune.py \"<note>\"`, and run it exactly ONCE per file, at the end of the turn, with the note already final — every additional edit forces a full re-read of the context file. Keep the note to bare `KEY_n=value` pairs plus the next file name: no filenames, no \"verified\" tags, no lists of deleted keys.",
+          "evidence": "This session's chunk_3 turn cost 5 tool calls for one file (prune, ls -l chunk_*.txt, cat, prune, prune) and overall 24 context edits for 7 cat calls; sizes walked 1319 -> 2097 -> ... -> 9843 chars because each turn re-committed its note, and 381k tokens were spent on ~7 x 7k-token reads. The chunk_4+ turns that used one compact note line (0=0319 1=0319 ...) needed a single prune."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+          "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.",
+          "evidence": "Note held KEY_0..KEY_8 for files already read (5kfcf19u, 0zewpkgl, 245qsmmb, m3qcz36v); I re-catted g75k7r1r, uml00nwi, ymk9nnfr, t7n33kfn, m3aqksw2, 97jbcvbj and every value matched the note."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\\[\\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.",
+          "evidence": "23 context edits this session; prune calls reported sizes like 32923 -> 5889 bytes while still preserving all KEY values in a compact note."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.",
+          "evidence": "This chain task: I ran `python3 /tmp/prune.py; sed -i 's/.*/PLACEHOLDER/' /dev/null 2>/dev/null; true`, which the review flagged as breaking the \"read files only with cat, in full\" instruction; the sed was a pointless no-op bundled onto a hygiene command."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.",
+          "evidence": "Writing the chunk_4 note: first prune matched with a content pattern `0{4} ember river beta+t*`, missed, and reported 34194 chars; rewriting the loop to drop any block over 5000 chars brought it to 6807. Later notes were written by deleting the old `[[CTX new note]]` block first (file went 11683 chars with duplicates -> single note), and 12 context edits produced 24 tool calls total, showing wasted edits."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "When the user says \"reply briefly\" and asks only for one fact (e.g. a last line number) alongside a store update, answer with that fact alone (\"chunk_5 last line: 0319\") — print no store dump and no \"Store now: ...\" line at all; the store belongs in the context note, not in the reply.",
+          "evidence": "Despite lesson #4 already existing, every reply this session opened with a full store dump (\"Store now: k0=8X3XJPTP, k3=VOTGJJNI, k4=5Q40880G, k7=TQLYUVTN, k8=FFWQ929R\") although the user asked \"Reply briefly\" and only wanted the chunk's last line number; the dumped text then sat in the context for all later reads."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Keep the context-prune helper on disk once (/tmp/prune.py: split on ^(?=\\[\\[CTX ), drop big blocks and the previous [[CTX new note]] block, append the note from sys.argv[1], print size), call it as `python3 /tmp/prune.py \"<note>\"`, and run it once per TWO read files rather than once per file, with the note already final — each run forces a full re-read of the context file and a fresh model call, so per-file pruning costs more than it saves. Keep the note to bare `id/severity` pairs plus the next file name.",
+          "evidence": "This chain task: 8 `cat`s + 6 prunes + 1 write = 15 tool calls and 153k tokens, ~19k per file, because every file got its own prune turn (12 context edits total) even though the file stayed under ~4k chars; no prune was needed at all once the note was the only thing retained."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.",
+          "evidence": "Every file this session (e.g. jwpprjk9.log, zuceu0l0.log: INCIDENT after 0102, NEXT FILE after 0191) had both lines interleaved with filler, in varying order."
+        }
+      ]
+    }
+  ]
+}

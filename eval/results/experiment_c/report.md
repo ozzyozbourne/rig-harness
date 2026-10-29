@@ -1,0 +1,89 @@
+| arm | family | clean | correct | broke read-only | mean tokens | ctx edits | tool calls |
+|---|---|---|---|---|---|---|---|
+| summary | needles | 5/6 | 6/6 | 1/6 | 263,334 | 0.0 | 10.3 |
+| clm | needles | 6/6 | 6/6 | 0/6 | 242,214 | 9.7 | 19.3 |
+| clm_ungated | needles | 5/6 | 6/6 | 1/6 | 471,895 | 21.8 | 41.0 |
+| clm_gated | needles | 5/6 | 6/6 | 1/6 | 258,151 | 13.7 | 23.8 |
+| summary | kv | 4/6 | 6/6 | 2/6 | 355,475 | 0.0 | 8.7 |
+| clm | kv | 2/6 | 5/6 | 3/6 | 418,093 | 12.7 | 24.3 |
+| clm_ungated | kv | 4/6 | 5/6 | 1/6 | 363,319 | 14.5 | 22.5 |
+| clm_gated | kv | 3/6 | 5/6 | 3/6 | 404,630 | 14.3 | 27.2 |
+| summary | rules | 4/6 | 4/6 | 0/6 | 203,098 | 0.0 | 8.3 |
+| clm | rules | 5/6 | 5/6 | 0/6 | 183,692 | 3.7 | 14.0 |
+| clm_ungated | rules | 4/6 | 6/6 | 2/6 | 355,630 | 21.0 | 32.0 |
+| clm_gated | rules | 5/6 | 5/6 | 0/6 | 195,282 | 8.7 | 19.8 |
+| summary | ledger | 5/6 | 5/6 | 0/6 | 202,606 | 0.0 | 8.0 |
+| clm | ledger | 5/6 | 5/6 | 0/6 | 178,542 | 5.2 | 13.3 |
+| clm_ungated | ledger | 4/6 | 5/6 | 1/6 | 223,998 | 18.0 | 19.7 |
+| clm_gated | ledger | 5/6 | 5/6 | 0/6 | 218,229 | 10.0 | 20.7 |
+| summary | learned (3) | 13/18 | 16/18 | 3/18 | 273,969 | 0.0 | 9.1 |
+| clm | learned (3) | 13/18 | 16/18 | 3/18 | 281,333 | 8.7 | 19.2 |
+| clm_ungated | learned (3) | 13/18 | 17/18 | 4/18 | 396,948 | 19.1 | 31.8 |
+| clm_gated | learned (3) | 13/18 | 16/18 | 4/18 | 286,021 | 12.2 | 23.6 |
+| summary | all | 18/24 | 21/24 | 3/24 | 256,128 | 0.0 | 8.8 |
+| clm | all | 18/24 | 21/24 | 3/24 | 255,635 | 7.8 | 17.8 |
+| clm_ungated | all | 17/24 | 22/24 | 5/24 | 353,711 | 18.8 | 28.8 |
+| clm_gated | all | 18/24 | 21/24 | 4/24 | 269,073 | 11.7 | 22.9 |
+
+Gate: 11/18 changed states accepted; rejections for lost clean runs: 2, for tokens over 1.25x: 5.
+
+Lessons in ungated-r0.json:
+- [skill] Chain/needle task with an existing progress note: verify a sample of the note's values by direct read, then trust the rest; record each KEY/value verbatim in your note marked verified, and never re-read a file whose value is already recorded. Re-reading all 7 unverified files after the note had already matched 3/3 doubled this task's reads (~396k tokens) for no new information.
+- [skill] Prune large tool output on the very next model call: run a short python3 script that re.split(r'(?m)^(?=\[\[CTX )') the context file and drops blocks matching the filler pattern (e.g. ^\d{4} ) or by block index, then print size before/after to confirm. Doing this before each ~4.5k-token `cat` of a 300-line file kept the context near 5-6k chars instead of letting ~40k accumulate.
+- [prompt] When the task restricts how data files are read (e.g. only bare `cat <file>`, one per command), never pipe a data file into another utility — no `cat f | sed`, `| head`, `| wc` on the file itself. Shell-only needs (pruning, printing sizes) go in a separate command that touches the context file, never the data — and that command must contain nothing else: no `;`-chained sed, no no-op `true`, one intent per call.
+- [skill] Context-file hygiene in a long memory task: keep exactly ONE `[[CTX new note]]` block (drop the previous one in the same script that writes the new one, or notes pile up and old values shadow the current ones), and drop big blocks by size (len>3000) rather than by guessing their content — a content regex that misses silently leaves the whole ~6k-token `cat` output in place. This session's first prune used a content pattern and left the file at 34194 chars; the len>3000 rule cut it to 6807. Confirm with the printed size after each edit.
+- [prompt] When the user says "reply briefly" and asks only for one fact (e.g. a last line number) alongside a store update, answer with that fact alone ("chunk_5 last line: 0319") — print no store dump and no "Store now: ..." line at all; the store belongs in the context note, not in the reply.
+- [skill] Keep the context-prune helper on disk once (/tmp/prune.py: split on ^(?=\[\[CTX ), drop big blocks and the previous [[CTX new note]] block, append the note from sys.argv[1], print size), call it as `python3 /tmp/prune.py "<note>"`, and run it once per TWO read files rather than once per file, with the note already final — each run forces a full re-read of the context file and a fresh model call, so per-file pruning costs more than it saves. Keep the note to bare `id/severity` pairs plus the next file name.
+- [memory] In this harness's chain-task data files, the `INCIDENT <id> severity=<n>` and `NEXT FILE: <name>` lines sit mid-file among ~250 numbered filler lines and can be in either order (e.g. in andn8d1n.log NEXT FILE was after line 0205, INCIDENT after 0247), so record both from the same cat rather than assuming they are the first or last lines.
+- [skill] In a prune script, never drop a block by size alone if it may hold the user's task/format instructions: skip `[[CTX ...] user]` blocks unconditionally and keep their rules word for word (output format, ordering, total line, last line), since the final answer must reproduce them exactly.
+
+Lessons in ungated-r1.json:
+- [skill] When a chained-file task says "cat each file in full, one file per command", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.
+- [skill] Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.
+- [skill] When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`head`/`awk`/`sed`/`od`, do not pipe the cat through `head`/`tail` (that is still a truncated read), and do not substitute repo probes like `git status`/`git log`, for the read. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal full read must happen.
+- [skill] In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.
+- [memory] A note in the context file that claims values were already collected (especially one headed "reconstructed" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.
+- [skill] For chain/link tasks (KEY_n + NEXT FILE), verify by walking from the first file and catting every hop in order, writing each value into the note as the cat output showed it; never answer from an accumulator that a prior compaction left behind without re-reading the hops it covers.
+- [skill] In a running key-value/store task, keep each turn's instruction line verbatim in the note (they are one line: sets, overwrites, deletes) plus the derived current table and an explicit DELETED list, and derive the final answer from those verbatim lines rather than only from the table; never compact away the raw update turns while the store is still live.
+- [skill] Keep the task's instruction and report-format lines verbatim in the accumulator note (the read rule plus the exact output fields/order), and draft the final answer against them field by field; when compacting, drop raw dumps but never the task's own rules, or the answer will be shaped from memory and fail the format check.
+
+Lessons in ungated-r2.json:
+- [skill] When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.
+- [prompt] Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.
+- [skill] Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.
+- [prompt] When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.
+- [skill] Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.
+- [prompt] Create the prune/record helper once with the `write` tool at a fixed absolute path (e.g. /tmp/<task>/prune.py) before the first data read, and have it take the context file by absolute path; then call it inline each step. Never silence its errors (no `2>/dev/null || true`) and have the same shell call print a byte count so you can see the prune really ran.
+- [skill] Read-chain tasks: one shell call per file that both appends the extracted value / next-file to the scratch store and prunes every tool block over ~2.5 KB from the context file, printing only the new context size. Select blocks by size alone, not by the role/`[[CTX <id> tool]]` header: no block-id or header-format grep is ever needed, since only tool outputs exceed the threshold.
+- [skill] Update a context-note store by parsing the canonical line into a dict, applying the user's set/delete ops, and rewriting that one line, with a loud assert on the expected key count — never blind str.replace("k4=old","k4=new") on key=value pairs. When the note line has drifted, the replace matches nothing, prints ok anyway, and the store silently keeps stale values.
+- [skill] When a task restricts how the DATA files may be read (`cat <file>` only, no grep/rg/awk/sed/head/tail/scripts), the restriction stops at the data: helper scripts may still read and rewrite the context file and append to a /tmp scratch store, so keep pruning/recording automated and only the data reads hand-run with `cat <file>`, one file per command.
+
+Lessons in gated-r0.json:
+- [skill] Reading a long chain of big data files under a token budget: after each read, rewrite the context file with one small python3 script that replaces every tool-output block by only its task-relevant lines (e.g. the INCIDENT/NEXT FILE lines), keeping the user's rules block verbatim; keep a running list of extracted values in your own notes, and compute the final answer from that list at the end.
+- [prompt] When a task pins how data files may be touched (e.g. "only `cat <file>`"), run no other command on them at all — no ls, wc, grep, rg or scripts, even just to plan; work from what the files themselves say.
+- [memory] In these generated filler-log chains the INCIDENT and NEXT FILE lines sit at arbitrary positions (mid-file, even with filler after `NEXT FILE: none`), so each file must be read in full before concluding anything.
+
+Lessons in gated-r1.json:
+- [prompt] Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.
+- [skill] Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r"^\d{4} ", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.
+- [memory] Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.
+- [prompt] After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.
+- [skill] Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.
+- [prompt] Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.
+- [skill] In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.
+- [skill] Resumed tasks: the inherited note is the authority for the task text verbatim, but NOT for key-value state — re-derive the key set from the SET/DELETE instructions still present in context and re-check any value the answer depends on; never re-cat a file whose extracted fact is already confirmed in the note.
+- [memory] Rig needle/chain tasks end with "answer with only a JSON object mapping each KEY_<n> to its value": emit the bare JSON object and nothing else, dropping the usual files-changed/checked note.
+- [prompt] In KV/store tasks, rewrite the single canonical store block every turn from the latest SET/DELETE lines and physically remove deleted keys; if a compaction leaves stale key lines you cannot trace to an instruction still in context, drop them rather than echoing them.
+- [prompt] When a task restricts data files to `cat` in full, one plain `cat <file>` per command: never pipe a data file into wc, tail, sed, grep or a python script, even just to count lines or get the last one — derive line numbers from the file's own numbering in the cat output instead.
+
+Lessons in gated-r2.json:
+- [prompt] Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.
+- [skill] Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.
+- [prompt] Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.
+- [prompt] Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.
+- [skill] When asked for a file's last line number under a "read with cat only" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just "N lines, last line number = N".
+- [skill] Harness-injected note blocks sit in the context file with a bare `[note]` header, not `[[CTX ...]]`. A compaction script that splits blocks on `^\[\[CTX` will miss them and leave duplicates growing each turn: split on any header matching `^\[\[?note` too (or drop every block whose header contains "note") and re-emit exactly one canonical `[[CTX note state]]`.
+- [prompt] When a task restricts how files may be read (e.g. "only `cat <file>`, in full"), use that exact minimal form on the very first read too: no `ls`, `wc`, or pipes into `tail`/`head` — a bare `cat -n <file>` already gives a full read plus line numbers.
+- [skill] In a KV-memory task, keep the note block as an exact live `k=v` list plus a separate `deleted: k2, k5` line, not `k2=DELETED` or `(was X)` annotations, so the final "current store" JSON can be dumped straight from the note without filtering.
+- [prompt] When a task forbids scripts/grep/sed on data files (e.g. "read only with `cat <file>` in full"), compact your context file with the `edit` or `write` tool, never by running python3/sh with the file names or task text in the command arguments — even if the script only touches the context file.
+- [prompt] When the task fixes an exact output format (given line-by-line template, "nothing else"), put that template word-for-word into the note block and emit the final answer as those lines alone: no code fence, no preamble, no trailing commentary — the content being right does not save a wrapped or annotated answer.

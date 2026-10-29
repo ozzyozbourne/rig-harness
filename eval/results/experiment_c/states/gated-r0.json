@@ -1,0 +1,61 @@
+{
+  "version": 3,
+  "next_id": 3,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "skill",
+      "text": "Reading a long chain of big data files under a token budget: after each read, rewrite the context file with one small python3 script that replaces every tool-output block by only its task-relevant lines (e.g. the INCIDENT/NEXT FILE lines), keeping the user's rules block verbatim; keep a running list of extracted values in your own notes, and compute the final answer from that list at the end.",
+      "evidence": "Each filler log was ~300 lines (~4k tokens) and 8 files would not fit in the 32000-token budget; compacting tool blocks to their INCIDENT/NEXT FILE lines after every read kept the context small and let all 8 files be read in full."
+    },
+    {
+      "id": 1,
+      "kind": "prompt",
+      "text": "When a task pins how data files may be touched (e.g. \"only `cat <file>`\"), run no other command on them at all — no ls, wc, grep, rg or scripts, even just to plan; work from what the files themselves say.",
+      "evidence": "The task said to read data files only with `cat <file>`, and I ran `ls *.log | wc -l; wc -l *.log | tail -5` to plan; the review flagged it as the broken instruction, and it added nothing since the NEXT FILE lines already gave the order."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "In these generated filler-log chains the INCIDENT and NEXT FILE lines sit at arbitrary positions (mid-file, even with filler after `NEXT FILE: none`), so each file must be read in full before concluding anything.",
+      "evidence": "In 2ba2s50u.log the INCIDENT line was at line 0122 and `NEXT FILE: none` at 0177 with 122 filler lines after it, and in the first seven files both lines moved around (0131, top, etc.) — a reader assuming a fixed header/footer position would have missed the incident or the chain end."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Reading a long chain of big data files under a token budget: after each read, rewrite the context file with one small python3 script that replaces every tool-output block by only its task-relevant lines (e.g. the INCIDENT/NEXT FILE lines), keeping the user's rules block verbatim; keep a running list of extracted values in your own notes, and compute the final answer from that list at the end.",
+          "evidence": "Each filler log was ~300 lines (~4k tokens) and 8 files would not fit in the 32000-token budget; compacting tool blocks to their INCIDENT/NEXT FILE lines after every read kept the context small and let all 8 files be read in full."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Reading a long chain of big data files under a token budget: after each read, rewrite the context file with one small python3 script that replaces every tool-output block by only its task-relevant lines (e.g. the INCIDENT/NEXT FILE lines), keeping the user's rules block verbatim; keep a running list of extracted values in your own notes, and compute the final answer from that list at the end.",
+          "evidence": "Each filler log was ~300 lines (~4k tokens) and 8 files would not fit in the 32000-token budget; compacting tool blocks to their INCIDENT/NEXT FILE lines after every read kept the context small and let all 8 files be read in full."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "When a task pins how data files may be touched (e.g. \"only `cat <file>`\"), run no other command on them at all — no ls, wc, grep, rg or scripts, even just to plan; work from what the files themselves say.",
+          "evidence": "The task said to read data files only with `cat <file>`, and I ran `ls *.log | wc -l; wc -l *.log | tail -5` to plan; the review flagged it as the broken instruction, and it added nothing since the NEXT FILE lines already gave the order."
+        }
+      ]
+    }
+  ]
+}

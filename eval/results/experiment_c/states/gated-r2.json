@@ -1,0 +1,397 @@
+{
+  "version": 10,
+  "next_id": 10,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+      "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+      "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+      "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+    },
+    {
+      "id": 3,
+      "kind": "prompt",
+      "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+      "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+    },
+    {
+      "id": 4,
+      "kind": "skill",
+      "text": "When asked for a file's last line number under a \"read with cat only\" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just \"N lines, last line number = N\".",
+      "evidence": "Seven chunk_N.txt files in this session each returned 320 lines; `cat -n` gave the last line number (320) without wc/head/tail, which the task's rules forbade, and each dump was compacted to a one-line stub right after answering."
+    },
+    {
+      "id": 5,
+      "kind": "skill",
+      "text": "Harness-injected note blocks sit in the context file with a bare `[note]` header, not `[[CTX ...]]`. A compaction script that splits blocks on `^\\[\\[CTX` will miss them and leave duplicates growing each turn: split on any header matching `^\\[\\[?note` too (or drop every block whose header contains \"note\") and re-emit exactly one canonical `[[CTX note state]]`.",
+      "evidence": "This session the first compaction used `if 'note state' in h: continue` inside a `^\\[\\[CTX .*\\]\\]$` split, so the six existing `[note]` blocks survived and were carried alongside my new note for several turns; only the final call, which skipped any header containing \"note\", collapsed the file to one block."
+    },
+    {
+      "id": 6,
+      "kind": "prompt",
+      "text": "When a task restricts how files may be read (e.g. \"only `cat <file>`, in full\"), use that exact minimal form on the very first read too: no `ls`, `wc`, or pipes into `tail`/`head` — a bare `cat -n <file>` already gives a full read plus line numbers.",
+      "evidence": "My first call this session was `ls; cat -n chunk_0.txt | tail -1`, and the review flagged it as the only instruction broken in an otherwise correct run; every later chunk used a bare `cat -n` and complied."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "In a KV-memory task, keep the note block as an exact live `k=v` list plus a separate `deleted: k2, k5` line, not `k2=DELETED` or `(was X)` annotations, so the final \"current store\" JSON can be dumped straight from the note without filtering.",
+      "evidence": "Keys k2 and k5 were deleted mid-run and k1/k4/k8/k9 were overwritten; the final answer had to be a JSON of live keys only, and the \"(was ...)\" annotations I kept were noise that had to be stripped by hand at the end."
+    },
+    {
+      "id": 8,
+      "kind": "prompt",
+      "text": "When a task forbids scripts/grep/sed on data files (e.g. \"read only with `cat <file>` in full\"), compact your context file with the `edit` or `write` tool, never by running python3/sh with the file names or task text in the command arguments — even if the script only touches the context file.",
+      "evidence": "Report-rules task under a read-restriction rule: I compacted context via `python3 /tmp/compact.py '<task text>'` and it was scored as a broken instruction, though the script never touched a data file."
+    },
+    {
+      "id": 9,
+      "kind": "prompt",
+      "text": "When the task fixes an exact output format (given line-by-line template, \"nothing else\"), put that template word-for-word into the note block and emit the final answer as those lines alone: no code fence, no preamble, no trailing commentary — the content being right does not save a wrapped or annotated answer.",
+      "evidence": "Report-rules task: all eight incident lines were correct, but the review said the report did not follow the format rules exactly — I emitted it inside a ```-fenced block with a sentence of commentary before and after, instead of only the required lines."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+          "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+          "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When asked for a file's last line number under a \"read with cat only\" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just \"N lines, last line number = N\".",
+          "evidence": "Seven chunk_N.txt files in this session each returned 320 lines; `cat -n` gave the last line number (320) without wc/head/tail, which the task's rules forbade, and each dump was compacted to a one-line stub right after answering."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+          "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When asked for a file's last line number under a \"read with cat only\" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just \"N lines, last line number = N\".",
+          "evidence": "Seven chunk_N.txt files in this session each returned 320 lines; `cat -n` gave the last line number (320) without wc/head/tail, which the task's rules forbade, and each dump was compacted to a one-line stub right after answering."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Harness-injected note blocks sit in the context file with a bare `[note]` header, not `[[CTX ...]]`. A compaction script that splits blocks on `^\\[\\[CTX` will miss them and leave duplicates growing each turn: split on any header matching `^\\[\\[?note` too (or drop every block whose header contains \"note\") and re-emit exactly one canonical `[[CTX note state]]`.",
+          "evidence": "This session the first compaction used `if 'note state' in h: continue` inside a `^\\[\\[CTX .*\\]\\]$` split, so the six existing `[note]` blocks survived and were carried alongside my new note for several turns; only the final call, which skipped any header containing \"note\", collapsed the file to one block."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+          "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When asked for a file's last line number under a \"read with cat only\" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just \"N lines, last line number = N\".",
+          "evidence": "Seven chunk_N.txt files in this session each returned 320 lines; `cat -n` gave the last line number (320) without wc/head/tail, which the task's rules forbade, and each dump was compacted to a one-line stub right after answering."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Harness-injected note blocks sit in the context file with a bare `[note]` header, not `[[CTX ...]]`. A compaction script that splits blocks on `^\\[\\[CTX` will miss them and leave duplicates growing each turn: split on any header matching `^\\[\\[?note` too (or drop every block whose header contains \"note\") and re-emit exactly one canonical `[[CTX note state]]`.",
+          "evidence": "This session the first compaction used `if 'note state' in h: continue` inside a `^\\[\\[CTX .*\\]\\]$` split, so the six existing `[note]` blocks survived and were carried alongside my new note for several turns; only the final call, which skipped any header containing \"note\", collapsed the file to one block."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "When a task restricts how files may be read (e.g. \"only `cat <file>`, in full\"), use that exact minimal form on the very first read too: no `ls`, `wc`, or pipes into `tail`/`head` — a bare `cat -n <file>` already gives a full read plus line numbers.",
+          "evidence": "My first call this session was `ls; cat -n chunk_0.txt | tail -1`, and the review flagged it as the only instruction broken in an otherwise correct run; every later chunk used a bare `cat -n` and complied."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+          "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When asked for a file's last line number under a \"read with cat only\" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just \"N lines, last line number = N\".",
+          "evidence": "Seven chunk_N.txt files in this session each returned 320 lines; `cat -n` gave the last line number (320) without wc/head/tail, which the task's rules forbade, and each dump was compacted to a one-line stub right after answering."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Harness-injected note blocks sit in the context file with a bare `[note]` header, not `[[CTX ...]]`. A compaction script that splits blocks on `^\\[\\[CTX` will miss them and leave duplicates growing each turn: split on any header matching `^\\[\\[?note` too (or drop every block whose header contains \"note\") and re-emit exactly one canonical `[[CTX note state]]`.",
+          "evidence": "This session the first compaction used `if 'note state' in h: continue` inside a `^\\[\\[CTX .*\\]\\]$` split, so the six existing `[note]` blocks survived and were carried alongside my new note for several turns; only the final call, which skipped any header containing \"note\", collapsed the file to one block."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "When a task restricts how files may be read (e.g. \"only `cat <file>`, in full\"), use that exact minimal form on the very first read too: no `ls`, `wc`, or pipes into `tail`/`head` — a bare `cat -n <file>` already gives a full read plus line numbers.",
+          "evidence": "My first call this session was `ls; cat -n chunk_0.txt | tail -1`, and the review flagged it as the only instruction broken in an otherwise correct run; every later chunk used a bare `cat -n` and complied."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "In a KV-memory task, keep the note block as an exact live `k=v` list plus a separate `deleted: k2, k5` line, not `k2=DELETED` or `(was X)` annotations, so the final \"current store\" JSON can be dumped straight from the note without filtering.",
+          "evidence": "Keys k2 and k5 were deleted mid-run and k1/k4/k8/k9 were overwritten; the final answer had to be a JSON of live keys only, and the \"(was ...)\" annotations I kept were noise that had to be stripped by hand at the end."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Compact the context file in the same turn as reading a large output: after each big `cat`/dump, immediately drop that block to a one-line stub in the next call, and pair every read with a compaction call so no 20K+ dump survives more than one step.",
+          "evidence": "In the file-chain task I read 27K-character files and compacted only every other file, so several dumps sat in context across extra model calls; the task cost 177K tokens against a 32K budget with 5 edits instead of ~10 immediate ones."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep distilled task state as one fixed-format note block that is rewritten wholesale on each compaction (drop every large block to a single-line stub, then re-emit the note with all extracted values and the exact next step); word-for-word only for literal data that the final answer must reproduce.",
+          "evidence": "Collecting a KEY_/NEXT FILE chain, I rewrote the whole context file each edit (drop large blocks, re-emit one note block with all values found so far); the note stayed under 20 lines while remaining complete and correct, whereas appending notes and truncating old ones would have kept growing."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Never spend a call on a script that only reports on the context file; make every compaction call do the whole job (drop big blocks and rewrite the note), and bundle it with the next read instead of running a separate inspection step.",
+          "evidence": "One call in this session ran a python script that only printed the sizes/headers of large blocks (no file change), and another bundled compaction with a read; the print-only call cost a full model round trip and changed nothing in context."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Before appending a note block, check the context file for an existing one and edit it in place: keep exactly one canonical note block, never two copies of the same state.",
+          "evidence": "In the KV run the user's first message already carried a `[note]` block with the k0-k5 values; I appended a second `[[CTX new note]]` block instead of replacing it, so two duplicate KV lists sat in context for every later turn (~9 turns), inflating each re-read for no benefit."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When asked for a file's last line number under a \"read with cat only\" rule, run `cat -n <file>`: it is still a full cat, yields the numbering directly, and the whole dump can then be dropped to a stub holding just \"N lines, last line number = N\".",
+          "evidence": "Seven chunk_N.txt files in this session each returned 320 lines; `cat -n` gave the last line number (320) without wc/head/tail, which the task's rules forbade, and each dump was compacted to a one-line stub right after answering."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Harness-injected note blocks sit in the context file with a bare `[note]` header, not `[[CTX ...]]`. A compaction script that splits blocks on `^\\[\\[CTX` will miss them and leave duplicates growing each turn: split on any header matching `^\\[\\[?note` too (or drop every block whose header contains \"note\") and re-emit exactly one canonical `[[CTX note state]]`.",
+          "evidence": "This session the first compaction used `if 'note state' in h: continue` inside a `^\\[\\[CTX .*\\]\\]$` split, so the six existing `[note]` blocks survived and were carried alongside my new note for several turns; only the final call, which skipped any header containing \"note\", collapsed the file to one block."
+        },
+        {
+          "id": 6,
+          "kind": "prompt",
+          "text": "When a task restricts how files may be read (e.g. \"only `cat <file>`, in full\"), use that exact minimal form on the very first read too: no `ls`, `wc`, or pipes into `tail`/`head` — a bare `cat -n <file>` already gives a full read plus line numbers.",
+          "evidence": "My first call this session was `ls; cat -n chunk_0.txt | tail -1`, and the review flagged it as the only instruction broken in an otherwise correct run; every later chunk used a bare `cat -n` and complied."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "In a KV-memory task, keep the note block as an exact live `k=v` list plus a separate `deleted: k2, k5` line, not `k2=DELETED` or `(was X)` annotations, so the final \"current store\" JSON can be dumped straight from the note without filtering.",
+          "evidence": "Keys k2 and k5 were deleted mid-run and k1/k4/k8/k9 were overwritten; the final answer had to be a JSON of live keys only, and the \"(was ...)\" annotations I kept were noise that had to be stripped by hand at the end."
+        },
+        {
+          "id": 8,
+          "kind": "prompt",
+          "text": "When a task forbids scripts/grep/sed on data files (e.g. \"read only with `cat <file>` in full\"), compact your context file with the `edit` or `write` tool, never by running python3/sh with the file names or task text in the command arguments — even if the script only touches the context file.",
+          "evidence": "Report-rules task under a read-restriction rule: I compacted context via `python3 /tmp/compact.py '<task text>'` and it was scored as a broken instruction, though the script never touched a data file."
+        }
+      ]
+    }
+  ]
+}

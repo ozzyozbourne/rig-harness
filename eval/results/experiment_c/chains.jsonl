@@ -1,0 +1,36 @@
+{"arm": "ungated", "rep": 1, "family": "needles", "seed": 110, "clean": true, "tokens": 199477, "lessons": 2}
+{"arm": "ungated", "rep": 2, "family": "needles", "seed": 120, "clean": true, "tokens": 316647, "lessons": 2}
+{"arm": "ungated", "rep": 0, "family": "needles", "seed": 100, "clean": true, "tokens": 396500, "lessons": 3}
+{"arm": "ungated", "rep": 1, "family": "kv", "seed": 110, "clean": false, "tokens": 307312, "lessons": 3}
+{"arm": "ungated", "rep": 2, "family": "kv", "seed": 120, "clean": true, "tokens": 191556, "lessons": 3}
+{"arm": "ungated", "rep": 0, "family": "kv", "seed": 100, "clean": true, "tokens": 312469, "lessons": 5}
+{"arm": "ungated", "rep": 2, "family": "rules", "seed": 120, "clean": false, "tokens": 216017, "lessons": 5}
+{"arm": "ungated", "rep": 1, "family": "rules", "seed": 110, "clean": true, "tokens": 194035, "lessons": 4}
+{"arm": "ungated", "rep": 0, "family": "rules", "seed": 100, "clean": true, "tokens": 146170, "lessons": 7}
+{"arm": "gated", "rep": 2, "family": "needles", "seed": 120, "changed": true, "accepted": true, "lost": [], "token_ratio": 0.763, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 177592, "lessons": 3}
+{"arm": "gated", "rep": 0, "family": "needles", "seed": 100, "changed": true, "accepted": false, "lost": [], "token_ratio": 1.284, "suite": {"needles": true, "kv": true, "rules": false}, "suite_before": {"needles": true, "kv": true, "rules": false}, "clean": true, "tokens": 463413, "lessons": 0}
+{"arm": "ungated", "rep": 0, "family": "needles", "seed": 101, "clean": false, "tokens": 205572, "lessons": 7}
+{"arm": "ungated", "rep": 2, "family": "needles", "seed": 121, "clean": true, "tokens": 330579, "lessons": 7}
+{"arm": "ungated", "rep": 1, "family": "needles", "seed": 111, "clean": false, "tokens": 216480, "lessons": 6}
+{"arm": "gated", "rep": 1, "family": "needles", "seed": 110, "changed": true, "accepted": true, "lost": [], "token_ratio": 0.954, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": false, "rules": true}, "clean": true, "tokens": 192054, "lessons": 3}
+{"arm": "ungated", "rep": 2, "family": "kv", "seed": 121, "clean": true, "tokens": 397717, "lessons": 8}
+{"arm": "ungated", "rep": 0, "family": "kv", "seed": 101, "clean": true, "tokens": 381067, "lessons": 7}
+{"arm": "ungated", "rep": 2, "family": "rules", "seed": 121, "clean": true, "tokens": 170016, "lessons": 9}
+{"arm": "gated", "rep": 2, "family": "kv", "seed": 120, "changed": true, "accepted": true, "lost": [], "token_ratio": 1.056, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 215159, "lessons": 5}
+{"arm": "ungated", "rep": 0, "family": "rules", "seed": 101, "clean": true, "tokens": 152963, "lessons": 8}
+{"arm": "ungated", "rep": 1, "family": "kv", "seed": 111, "clean": true, "tokens": 310576, "lessons": 7}
+{"arm": "ungated", "rep": 1, "family": "rules", "seed": 111, "clean": false, "tokens": 132905, "lessons": 8}
+{"arm": "gated", "rep": 0, "family": "kv", "seed": 100, "changed": true, "accepted": false, "lost": [], "token_ratio": 1.294, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": false}, "clean": true, "tokens": 443345, "lessons": 0}
+{"arm": "gated", "rep": 1, "family": "kv", "seed": 110, "changed": true, "accepted": true, "lost": [], "token_ratio": 0.928, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 437536, "lessons": 5}
+{"arm": "gated", "rep": 2, "family": "rules", "seed": 120, "changed": true, "accepted": true, "lost": [], "token_ratio": 1.132, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 104432, "lessons": 6}
+{"arm": "gated", "rep": 0, "family": "rules", "seed": 100, "changed": true, "accepted": true, "lost": [], "token_ratio": 0.856, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": false}, "clean": false, "tokens": 179550, "lessons": 3}
+{"arm": "gated", "rep": 1, "family": "rules", "seed": 110, "changed": true, "accepted": true, "lost": [], "token_ratio": 0.9, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 141848, "lessons": 7}
+{"arm": "gated", "rep": 0, "family": "needles", "seed": 101, "changed": true, "accepted": false, "lost": [], "token_ratio": 1.859, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": false, "tokens": 173025, "lessons": 3}
+{"arm": "gated", "rep": 2, "family": "needles", "seed": 121, "changed": true, "accepted": false, "lost": [], "token_ratio": 1.613, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 284857, "lessons": 6}
+{"arm": "gated", "rep": 1, "family": "needles", "seed": 111, "changed": true, "accepted": true, "lost": [], "token_ratio": 1.206, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 191297, "lessons": 9}
+{"arm": "gated", "rep": 0, "family": "kv", "seed": 101, "changed": true, "accepted": false, "lost": ["rules"], "token_ratio": 1.108, "suite": {"needles": true, "kv": true, "rules": false}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 252501, "lessons": 3}
+{"arm": "gated", "rep": 2, "family": "kv", "seed": 121, "changed": true, "accepted": true, "lost": [], "token_ratio": 1.007, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": false, "tokens": 251535, "lessons": 8}
+{"arm": "gated", "rep": 1, "family": "kv", "seed": 111, "changed": true, "accepted": true, "lost": [], "token_ratio": 1.035, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": false, "tokens": 352961, "lessons": 11}
+{"arm": "gated", "rep": 0, "family": "rules", "seed": 101, "changed": true, "accepted": false, "lost": [], "token_ratio": 1.626, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 184742, "lessons": 3}
+{"arm": "gated", "rep": 2, "family": "rules", "seed": 121, "changed": true, "accepted": true, "lost": [], "token_ratio": 1.126, "suite": {"needles": true, "kv": true, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": false, "tokens": 94302, "lessons": 10}
+{"arm": "gated", "rep": 1, "family": "rules", "seed": 111, "changed": true, "accepted": false, "lost": ["kv"], "token_ratio": 0.99, "suite": {"needles": true, "kv": false, "rules": true}, "suite_before": {"needles": true, "kv": true, "rules": true}, "clean": true, "tokens": 210134, "lessons": 11}

@@ -1,0 +1,457 @@
+{
+  "version": 12,
+  "next_id": 9,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "skill",
+      "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+      "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+    },
+    {
+      "id": 1,
+      "kind": "prompt",
+      "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+      "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+    },
+    {
+      "id": 2,
+      "kind": "skill",
+      "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+      "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+    },
+    {
+      "id": 3,
+      "kind": "prompt",
+      "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+      "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+    },
+    {
+      "id": 4,
+      "kind": "skill",
+      "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+      "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "Create the prune/record helper once with the `write` tool at a fixed absolute path (e.g. /tmp/<task>/prune.py) before the first data read, and have it take the context file by absolute path; then call it inline each step. Never silence its errors (no `2>/dev/null || true`) and have the same shell call print a byte count so you can see the prune really ran.",
+      "evidence": "This session I wrote /tmp/rep/prune.py with the write tool in a single call before the first cat, then ran `python3 /tmp/rep/prune.py 2500` 8 times; it printed \"ctx bytes N\" every time and never failed, unlike the session behind lesson #5 where an uncreated helper hidden behind 2>/dev/null silently pruned nothing."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "Read-chain tasks: one shell call per file that both appends the extracted value / next-file to the scratch store and prunes every tool block over ~2.5 KB from the context file, printing only the new context size. Select blocks by size alone, not by the role/`[[CTX <id> tool]]` header: no block-id or header-format grep is ever needed, since only tool outputs exceed the threshold.",
+      "evidence": "In this session's 8-file log chain I spent one extra call on `grep -n '^\\[\\[CTX' | cut; wc -c` to learn block roles before my prune script could filter on \"tool\"; context peaked at only ~4 KB, and every oversized block was a tool block, so a size-only prune would have worked with no inspection call. The per-file call (printf value to /tmp/rep/inc.txt + python3 prune.py, printing only a byte count) reduced the 8 raw ~28 KB cat outputs to 170k total tokens."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "Update a context-note store by parsing the canonical line into a dict, applying the user's set/delete ops, and rewriting that one line, with a loud assert on the expected key count — never blind str.replace(\"k4=old\",\"k4=new\") on key=value pairs. When the note line has drifted, the replace matches nothing, prints ok anyway, and the store silently keeps stale values.",
+      "evidence": "In this KV session s.replace(\"k4=8DBCDIB3\",\"k4=6SFCEJDQ\") and s.replace(\"k1=NW2XMG2H\",\"k1=BTXAHCDN\") matched nothing (the note held 6SFCEJDQ/BTXAHCDN already, or a different stale value) yet the script still printed \"ok\", so I had to spend extra shell calls grepping \"Store:\" to see what the line actually said before I could answer the final JSON-only question."
+    },
+    {
+      "id": 8,
+      "kind": "skill",
+      "text": "When a task restricts how the DATA files may be read (`cat <file>` only, no grep/rg/awk/sed/head/tail/scripts), the restriction stops at the data: helper scripts may still read and rewrite the context file and append to a /tmp scratch store, so keep pruning/recording automated and only the data reads hand-run with `cat <file>`, one file per command.",
+      "evidence": "This task's rules banned grep, rg, awk, sed, head, tail and scripts for reading or searching the log chain, but I still used python3 to prune the .clm context file and `printf >> /tmp/rep/inc.txt` to carry 8 incident/severity pairs, reading every data file with a plain `cat <file>` in its own call; the report was correct and well inside budget."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note.",
+          "evidence": "This session carried the KEY_0..KEY_n list in a context note and rewrote the whole note with a python heredoc on every step (13 context edits, ~316k tokens); a one-line append to a scratch file would have cost a fraction."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note.",
+          "evidence": "This session carried the KEY_0..KEY_n list in a context note and rewrote the whole note with a python heredoc on every step (13 context edits, ~316k tokens); a one-line append to a scratch file would have cost a fraction."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+          "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+          "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never silence a prune/record helper's errors (no `2>/dev/null || true`): the helper may not exist, and the failure is then invisible until the context is already over budget. Have the same shell call print a byte count so you can see the prune really ran, and delete large tool blocks by size in that inline script rather than looking up block ids in a separate call.",
+          "evidence": "First step ran `python3 /tmp/kv/prune.py 2>/dev/null || true` — that script never existed, the error was hidden, nothing was pruned, and I had to re-run an inline prune script plus an extra `grep '^\\[\\[CTX'` block listing in the following calls (18 context edits, 330k tokens)."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+          "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never silence a prune/record helper's errors (no `2>/dev/null || true`): the helper may not exist, and the failure is then invisible until the context is already over budget. Have the same shell call print a byte count so you can see the prune really ran, and delete large tool blocks by size in that inline script rather than looking up block ids in a separate call.",
+          "evidence": "First step ran `python3 /tmp/kv/prune.py 2>/dev/null || true` — that script never existed, the error was hidden, nothing was pruned, and I had to re-run an inline prune script plus an extra `grep '^\\[\\[CTX'` block listing in the following calls (18 context edits, 330k tokens)."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Read-chain tasks: one shell call per file that both appends `KEY_n = value` / next-file to the scratch store and prunes every tool block over ~3 KB from the context file, printing only the new file size. That halves the calls (no separate record step, no block-id grep) and keeps the raw word-grid rows out of context.",
+          "evidence": "In this session each of KEY_2..KEY_8 took two calls (record, then a second prune with block listing); folding them into one call per file would have removed ~8 calls and the redundant CTX-list greps, which were pure overhead against the 32k budget."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "update #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+          "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never silence a prune/record helper's errors (no `2>/dev/null || true`): the helper may not exist, and the failure is then invisible until the context is already over budget. Have the same shell call print a byte count so you can see the prune really ran, and delete large tool blocks by size in that inline script rather than looking up block ids in a separate call.",
+          "evidence": "First step ran `python3 /tmp/kv/prune.py 2>/dev/null || true` — that script never existed, the error was hidden, nothing was pruned, and I had to re-run an inline prune script plus an extra `grep '^\\[\\[CTX'` block listing in the following calls (18 context edits, 330k tokens)."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Read-chain tasks: one shell call per file that both appends `KEY_n = value` / next-file to the scratch store and prunes every tool block over ~3 KB from the context file, printing only the new file size. That halves the calls (no separate record step, no block-id grep) and keeps the raw word-grid rows out of context.",
+          "evidence": "In this session each of KEY_2..KEY_8 took two calls (record, then a second prune with block listing); folding them into one call per file would have removed ~8 calls and the redundant CTX-list greps, which were pure overhead against the 32k budget."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Update a context-note store by parsing the canonical line into a dict, applying the user's set/delete ops, and rewriting that one line, with a loud assert on the expected key count — never blind str.replace(\"k4=old\",\"k4=new\") on key=value pairs. When the note line has drifted, the replace matches nothing, prints ok anyway, and the store silently keeps stale values.",
+          "evidence": "In this KV session s.replace(\"k4=8DBCDIB3\",\"k4=6SFCEJDQ\") and s.replace(\"k1=NW2XMG2H\",\"k1=BTXAHCDN\") matched nothing (the note held 6SFCEJDQ/BTXAHCDN already, or a different stale value) yet the script still printed \"ok\", so I had to spend extra shell calls grepping \"Store:\" to see what the line actually said before I could answer the final JSON-only question."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "update #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+          "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never silence a prune/record helper's errors (no `2>/dev/null || true`): the helper may not exist, and the failure is then invisible until the context is already over budget. Have the same shell call print a byte count so you can see the prune really ran, and delete large tool blocks by size in that inline script rather than looking up block ids in a separate call.",
+          "evidence": "First step ran `python3 /tmp/kv/prune.py 2>/dev/null || true` — that script never existed, the error was hidden, nothing was pruned, and I had to re-run an inline prune script plus an extra `grep '^\\[\\[CTX'` block listing in the following calls (18 context edits, 330k tokens)."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Read-chain tasks: one shell call per file that both appends the extracted value / next-file to the scratch store and prunes every tool block over ~2.5 KB from the context file, printing only the new context size. Select blocks by size alone, not by the role/`[[CTX <id> tool]]` header: no block-id or header-format grep is ever needed, since only tool outputs exceed the threshold.",
+          "evidence": "In this session's 8-file log chain I spent one extra call on `grep -n '^\\[\\[CTX' | cut; wc -c` to learn block roles before my prune script could filter on \"tool\"; context peaked at only ~4 KB, and every oversized block was a tool block, so a size-only prune would have worked with no inspection call. The per-file call (printf value to /tmp/rep/inc.txt + python3 prune.py, printing only a byte count) reduced the 8 raw ~28 KB cat outputs to 170k total tokens."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Update a context-note store by parsing the canonical line into a dict, applying the user's set/delete ops, and rewriting that one line, with a loud assert on the expected key count — never blind str.replace(\"k4=old\",\"k4=new\") on key=value pairs. When the note line has drifted, the replace matches nothing, prints ok anyway, and the store silently keeps stale values.",
+          "evidence": "In this KV session s.replace(\"k4=8DBCDIB3\",\"k4=6SFCEJDQ\") and s.replace(\"k1=NW2XMG2H\",\"k1=BTXAHCDN\") matched nothing (the note held 6SFCEJDQ/BTXAHCDN already, or a different stale value) yet the script still printed \"ok\", so I had to spend extra shell calls grepping \"Store:\" to see what the line actually said before I could answer the final JSON-only question."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a task walks a chain of large files and only a few values must be carried forward, append each found value as one line to a scratch file outside the context (e.g. /tmp/<task>/keys.txt) and read it once at the end, instead of holding and rewriting the accumulated list inside a context note. When the user forbids writing to files, the context note is the store: keep one canonical line there and edit it in place with a tiny script.",
+          "evidence": "This task forbade writing the KV store to any file except the context file, so skill #0's scratch-file advice would have violated the instructions; the store had to live as one line in the context note and be updated in place."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "Edit the context file by appending or deleting single blocks, and delete a large tool-output block as soon as its needed value is recorded elsewhere; do not re-emit a growing summary verbatim on every step. Rewriting the whole note each step costs more than the value it preserves.",
+          "evidence": "Reading each chain file produced ~300 rows of words that were never needed after the KEY and NEXT FILE lines were extracted, yet they stayed in context while the note was rewritten; the review showed the summarizer spent ~258k tokens on the same task."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Keep exactly one copy of a held store in context: put it in the note line once, have the edit script print only a byte count or ok (never echo the values), and in the reply state only what the user asked for plus a short change summary — not the whole store.",
+          "evidence": "In this session the same key=value line appeared up to three times per step (note line, script output echoing it, reply restating the updated keys), inflating token cost to ~192k for an 8-step task; only the last line number was ever requested."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "When a tool output is large, the harness may replace it with a placeholder before your next call: write the extracted values into the scratch store (or state them in your reply) in the very next call after reading, and never end a step between seeing a value and recording it, or you must re-read the whole file.",
+          "evidence": "The cat of 0rlpoa9s.log was replaced by \"[large tool output dropped; values recorded in /tmp/expc/inc.txt]\" before my next call, so its INCIDENT/NEXT FILE lines were lost and I had to cat the file a second time, costing a full extra ~300-line read."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Context-prune scripts should take the context file by absolute path and never `cd` in the shell: the shell's default cwd is where the task's data files live, and changing it makes the next `cat <file>` fail.",
+          "evidence": "I ran `cd /tmp/expc/.../.clm` inside the same shell command to prune the context file, which changed the default cwd; the following `cat idesi411.log` in that command failed with \"No such file or directory\" and I had to run `pwd; ls` to find that the data files live in /tmp/expc/runs/ungated-r2-2/rules/r120."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Create the prune/record helper once with the `write` tool at a fixed absolute path (e.g. /tmp/<task>/prune.py) before the first data read, and have it take the context file by absolute path; then call it inline each step. Never silence its errors (no `2>/dev/null || true`) and have the same shell call print a byte count so you can see the prune really ran.",
+          "evidence": "This session I wrote /tmp/rep/prune.py with the write tool in a single call before the first cat, then ran `python3 /tmp/rep/prune.py 2500` 8 times; it printed \"ctx bytes N\" every time and never failed, unlike the session behind lesson #5 where an uncreated helper hidden behind 2>/dev/null silently pruned nothing."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Read-chain tasks: one shell call per file that both appends the extracted value / next-file to the scratch store and prunes every tool block over ~2.5 KB from the context file, printing only the new context size. Select blocks by size alone, not by the role/`[[CTX <id> tool]]` header: no block-id or header-format grep is ever needed, since only tool outputs exceed the threshold.",
+          "evidence": "In this session's 8-file log chain I spent one extra call on `grep -n '^\\[\\[CTX' | cut; wc -c` to learn block roles before my prune script could filter on \"tool\"; context peaked at only ~4 KB, and every oversized block was a tool block, so a size-only prune would have worked with no inspection call. The per-file call (printf value to /tmp/rep/inc.txt + python3 prune.py, printing only a byte count) reduced the 8 raw ~28 KB cat outputs to 170k total tokens."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Update a context-note store by parsing the canonical line into a dict, applying the user's set/delete ops, and rewriting that one line, with a loud assert on the expected key count — never blind str.replace(\"k4=old\",\"k4=new\") on key=value pairs. When the note line has drifted, the replace matches nothing, prints ok anyway, and the store silently keeps stale values.",
+          "evidence": "In this KV session s.replace(\"k4=8DBCDIB3\",\"k4=6SFCEJDQ\") and s.replace(\"k1=NW2XMG2H\",\"k1=BTXAHCDN\") matched nothing (the note held 6SFCEJDQ/BTXAHCDN already, or a different stale value) yet the script still printed \"ok\", so I had to spend extra shell calls grepping \"Store:\" to see what the line actually said before I could answer the final JSON-only question."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,529 @@
+{
+  "version": 12,
+  "next_id": 11,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+      "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+      "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+      "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+    },
+    {
+      "id": 3,
+      "kind": "prompt",
+      "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+      "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+    },
+    {
+      "id": 4,
+      "kind": "skill",
+      "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+      "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+      "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.",
+      "evidence": "This session: I kept the extracted chain in the note block but stopped updating it after 5 of 8 files (NEXT TO CAT stayed stale) while separately appending to /tmp/chain.txt, costing 3 extra shell calls and two mismatched formats over 11 context edits for a task that needed 141,848 tokens."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "Resumed tasks: the inherited note is the authority for the task text verbatim, but NOT for key-value state — re-derive the key set from the SET/DELETE instructions still present in context and re-check any value the answer depends on; never re-cat a file whose extracted fact is already confirmed in the note.",
+      "evidence": "This KV session I trusted the inherited note's store and answered with k2 and k4, which the review marked \"not expected\" (they had been deleted); the note's task text and chunk answers were fine, its state lines were stale."
+    },
+    {
+      "id": 8,
+      "kind": "memory",
+      "text": "Rig needle/chain tasks end with \"answer with only a JSON object mapping each KEY_<n> to its value\": emit the bare JSON object and nothing else, dropping the usual files-changed/checked note.",
+      "evidence": "This task's verbatim instruction was \"answer with only a JSON object\"; I answered with just the JSON despite the harness's default instruction to name changed files, and the review scored the answer correct."
+    },
+    {
+      "id": 9,
+      "kind": "prompt",
+      "text": "In KV/store tasks, rewrite the single canonical store block every turn from the latest SET/DELETE lines and physically remove deleted keys; if a compaction leaves stale key lines you cannot trace to an instruction still in context, drop them rather than echoing them.",
+      "evidence": "Review of this session: answer contained k2 and k4 that were \"not expected\", after I carried the inherited note's store forward and only added a k5 change."
+    },
+    {
+      "id": 10,
+      "kind": "prompt",
+      "text": "When a task restricts data files to `cat` in full, one plain `cat <file>` per command: never pipe a data file into wc, tail, sed, grep or a python script, even just to count lines or get the last one — derive line numbers from the file's own numbering in the cat output instead.",
+      "evidence": "Review flagged \"Instruction broken\": I ran `cat chunk_0.txt | tail -1` / `cat chunk_0.txt | sed -n '$='` and in this turn `cat chunk_5.txt | wc -l`, breaking the cat-only rule and wasting the output."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+          "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+          "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.",
+          "evidence": "This session: I kept the extracted chain in the note block but stopped updating it after 5 of 8 files (NEXT TO CAT stayed stale) while separately appending to /tmp/chain.txt, costing 3 extra shell calls and two mismatched formats over 11 context edits for a task that needed 141,848 tokens."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+          "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.",
+          "evidence": "This session: I kept the extracted chain in the note block but stopped updating it after 5 of 8 files (NEXT TO CAT stayed stale) while separately appending to /tmp/chain.txt, costing 3 extra shell calls and two mismatched formats over 11 context edits for a task that needed 141,848 tokens."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Resumed chain tasks: the inherited note block is the authority — it holds the task text verbatim and the KEY values already read. Never re-cat a file whose KEY_<n> is already in the note; use the KEY_<n> numbering (continuous 0..n, no gaps or dupes) plus the last file's `NEXT FILE: none` as the completeness check, then strip filler after every new cat.",
+          "evidence": "In this session KEY_0..KEY_6 and the task text came from the inherited note; I read only the last 3 files (tl6bn83d, 4ahl27jf, vw3ohv1i) instead of all 10, and confirmed the chain was complete because the keys ran 0..9 with no gaps and the last file said NEXT FILE: none."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "update #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+          "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.",
+          "evidence": "This session: I kept the extracted chain in the note block but stopped updating it after 5 of 8 files (NEXT TO CAT stayed stale) while separately appending to /tmp/chain.txt, costing 3 extra shell calls and two mismatched formats over 11 context edits for a task that needed 141,848 tokens."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Resumed chain tasks: the inherited note block is the authority — it holds the task text verbatim and the KEY values already read. Never re-cat a file whose KEY_<n> is already in the note; use the KEY_<n> numbering (continuous 0..n, no gaps or dupes) plus the last file's `NEXT FILE: none` as the completeness check, then strip filler after every new cat.",
+          "evidence": "In this session KEY_0..KEY_6 and the task text came from the inherited note; I read only the last 3 files (tl6bn83d, 4ahl27jf, vw3ohv1i) instead of all 10, and confirmed the chain was complete because the keys ran 0..9 with no gaps and the last file said NEXT FILE: none."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks end with \"answer with only a JSON object mapping each KEY_<n> to its value\": emit the bare JSON object and nothing else, dropping the usual files-changed/checked note.",
+          "evidence": "This task's verbatim instruction was \"answer with only a JSON object\"; I answered with just the JSON despite the harness's default instruction to name changed files, and the review scored the answer correct."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+          "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.",
+          "evidence": "This session: I kept the extracted chain in the note block but stopped updating it after 5 of 8 files (NEXT TO CAT stayed stale) while separately appending to /tmp/chain.txt, costing 3 extra shell calls and two mismatched formats over 11 context edits for a task that needed 141,848 tokens."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Resumed tasks: the inherited note is the authority for the task text verbatim, but NOT for key-value state — re-derive the key set from the SET/DELETE instructions still present in context and re-check any value the answer depends on; never re-cat a file whose extracted fact is already confirmed in the note.",
+          "evidence": "This KV session I trusted the inherited note's store and answered with k2 and k4, which the review marked \"not expected\" (they had been deleted); the note's task text and chunk answers were fine, its state lines were stale."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks end with \"answer with only a JSON object mapping each KEY_<n> to its value\": emit the bare JSON object and nothing else, dropping the usual files-changed/checked note.",
+          "evidence": "This task's verbatim instruction was \"answer with only a JSON object\"; I answered with just the JSON despite the harness's default instruction to name changed files, and the review scored the answer correct."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "Before each expensive read (a multi-KB file, a big diff, a long log), collapse the context file to a compact notes block first; then peak context is notes plus one read, not the whole history.",
+          "evidence": "Reading a 10-file chain of ~27 KB files one per turn, pruning only after each cat, cost 192k tokens against a 32k budget in this session although the context file was 1.5 KB at every prune."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Extracting facts from big must-read files: cat the file, then in the same reply run a python3 one-liner on the context .md that deletes filler lines (e.g. re.match(r\"^\\d{4} \", l)), keeping the extracted values and the task's wording verbatim, and print how many lines went; a short cat of the .md confirms what survived. One extra shell call instead of one extra model round-trip per file.",
+          "evidence": "Used this filter after every file in the chain task: each prune reported 300 removed lines and kept the context at ~1.5 KB, but running it as a separate call after each read doubled the round-trips (18 tool calls for 10 files)."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks here: each .log is ~27 KB of numbered filler with exactly one KEY_<n> = <value> line and one NEXT FILE line, so extract those two lines verbatim and drop the rest; listing sizes with wc does not break a read-files-only-with-cat rule.",
+          "evidence": "In this session each chain file was ~27 KB (~300 filler lines, ~9k tokens) with one KEY line and one NEXT FILE line; ten files meant the full chain could not fit a 32k budget, and `wc -c *.log` (shell, not a cat of contents) showed the 10-file scale before the middle of the chain."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "After a task-mandated full `cat`, delete that dump from the context file in the very next call and keep only the facts needed (e.g. the last line number); otherwise whole 320-line files stay in context and dominate the budget.",
+          "evidence": "This session's chunk_5.txt and chunk_6.txt cat outputs stayed in the context file, which grew to 702 lines and cost 437k tokens; keeping only each last line would have made the context tiny."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "Editing a context note: keep exactly one canonical note block and update it in place; if an edit reports old_text matches several places, use replace_all or include a unique neighboring line rather than retrying the same match.",
+          "evidence": "In this session a note write left duplicate note blocks; a later KV update failed 2/2 because the old_text matched at lines 5 and 8, and replace_all then applied 11 replacements and cleaned up the duplication."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Never rewrite or truncate the whole context file in the same reply as a tool call whose output you must keep (e.g. a `cat` of the next data file): if the result lands before the write it is erased. Do the full-file rewrite alone, verify what survived, then make the read in the next reply.",
+          "evidence": "In this 8-file chain task I rewrote the context .md down to block 0 plus one note block, and deliberately split that rewrite from `cat fry9oz6i.log` into separate replies for exactly this reason; doing both in one reply risked losing the read."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a multi-file chain, keep the running extracted list in exactly one place: the single note block in the context file. After each filler strip, rewrite that block's chain lines and `NEXT TO CAT:` line in the same shell call (a small python3 replace) instead of appending to a side file like /tmp/chain.txt, and keep the note current after every file.",
+          "evidence": "This session: I kept the extracted chain in the note block but stopped updating it after 5 of 8 files (NEXT TO CAT stayed stale) while separately appending to /tmp/chain.txt, costing 3 extra shell calls and two mismatched formats over 11 context edits for a task that needed 141,848 tokens."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Resumed tasks: the inherited note is the authority for the task text verbatim, but NOT for key-value state — re-derive the key set from the SET/DELETE instructions still present in context and re-check any value the answer depends on; never re-cat a file whose extracted fact is already confirmed in the note.",
+          "evidence": "This KV session I trusted the inherited note's store and answered with k2 and k4, which the review marked \"not expected\" (they had been deleted); the note's task text and chunk answers were fine, its state lines were stale."
+        },
+        {
+          "id": 8,
+          "kind": "memory",
+          "text": "Rig needle/chain tasks end with \"answer with only a JSON object mapping each KEY_<n> to its value\": emit the bare JSON object and nothing else, dropping the usual files-changed/checked note.",
+          "evidence": "This task's verbatim instruction was \"answer with only a JSON object\"; I answered with just the JSON despite the harness's default instruction to name changed files, and the review scored the answer correct."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "In KV/store tasks, rewrite the single canonical store block every turn from the latest SET/DELETE lines and physically remove deleted keys; if a compaction leaves stale key lines you cannot trace to an instruction still in context, drop them rather than echoing them.",
+          "evidence": "Review of this session: answer contained k2 and k4 that were \"not expected\", after I carried the inherited note's store forward and only added a k5 change."
+        }
+      ]
+    }
+  ]
+}

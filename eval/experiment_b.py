@@ -17,6 +17,8 @@ Families, each about 40-50K tokens of tool output through a 32K budget:
              in context only; report the final store
   rules      exact report rules given first, then a chain of 8 files
              with one incident each; the report must follow every rule
+  ledger     (held out, used by experiment_c) a chain of 8 files with two
+             transactions each; report every final balance
 """
 
 import argparse
@@ -108,6 +110,23 @@ def make(family, seed):
                 "holds one line `INCIDENT <id> severity=<n>` and one line `NEXT FILE: <name>` naming the next "
                 "file (the last says `NEXT FILE: none`). After reading the whole chain, write the report.")
         return files, [task], incidents
+    if family == "ledger":
+        accounts = [f"acct-{code(rng).lower()[:4]}" for _ in range(4)]
+        balance = dict.fromkeys(accounts, 0)
+        lines = []
+        for _ in range(8):
+            txs = []
+            for _ in range(2):
+                a, n = rng.choice(accounts), rng.choice([-1, 1]) * rng.randint(5, 95)
+                balance[a] += n
+                txs.append(f"     TX {a} {n:+d}")
+            lines.append("\n".join(txs))
+        files = chained(rng, lines, 300)
+        task = (f"Read the file chain that starts at {next(iter(files))}. {READ_ONLY} Each file holds two lines "
+                "`TX <account> <signed amount>` and one line `NEXT FILE: <name>` naming the next file (the last "
+                "says `NEXT FILE: none`). Every account starts at 0. After reading the whole chain, answer with only "
+                "a JSON object mapping each account to its final balance as an integer.")
+        return files, [task], {a: str(b) for a, b in balance.items()}
     raise ValueError(family)
 
 
@@ -121,7 +140,7 @@ def json_object(answer):
 
 def grade(family, answer, expected):
     """(score in [0, 1], success)."""
-    if family in ("needles", "kv"):
+    if family in ("needles", "kv", "ledger"):
         got = {str(k): str(v) for k, v in json_object(answer).items()}
         keys = set(expected) | set(got)
         right = sum(1 for k in keys if got.get(k) == expected.get(k))
@@ -163,24 +182,73 @@ def session_usage(session):
     return best
 
 
-def searched(calls):
-    for c in calls:
-        cmd = c["args"].get("command", "") if c["name"] == "shell" and isinstance(c["args"], dict) else ""
-        if re.search(r"\b(grep|rg|awk|sed|head|tail)\b", cmd) and ".clm" not in cmd:
-            return True
-        if c["name"] in ("grep", "glob", "search"):
-            return True
-    return False
+FILTERS = {"grep", "rg", "awk", "sed", "head", "tail", "wc", "cut", "sort", "uniq", "od", "xxd", "strings", "less"}
 
 
-def one(out, arm, family, rep):
+def violation(commands, names):
+    """The first command that runs a filter (`tail`, `wc`, `grep`...) on a data
+    file (one of `names`), directly or through a pipe, or None. Heredoc bodies
+    and quoted text are skipped: a script that edits the context file may
+    mention data files in its note. A script that opens data files itself is
+    not caught."""
+    for cmd in commands:
+        c = re.sub(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2[ \t]*(?=\n|$)", "", cmd, flags=re.S)
+        c = re.sub(r"'[^']*'|\"[^\"]*\"", "''", c)
+        for pipeline in re.split(r";|&&|\|\||\n", c):
+            segs = [seg.split() for seg in pipeline.split("|")]
+            for i, words in enumerate(segs):
+                if any(n in w for w in words for n in names) and any(
+                        later[:1] and later[0] in FILTERS for later in segs[i:]):
+                    return cmd
+    return None
+
+
+def shell_commands(calls):
+    return [c["args"].get("command", "") for c in calls if c["name"] == "shell" and isinstance(c["args"], dict)]
+
+
+def session_commands(session):
+    """Every shell command a session's agents ran, from its logs."""
+    home = os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
+    out = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            if x.get("name") == "shell" and isinstance(x.get("arguments"), dict):
+                out.append(x["arguments"].get("command", ""))
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+
+    for path in glob.glob(os.path.join(home, "sessions", session or "-", "logs", "*.jsonl")):
+        with open(path) as f:
+            for line in f:
+                if '"shell"' in line:
+                    walk(json.loads(line))
+    return out
+
+
+def rescore(row):
+    """`row` with its read-only check redone from its session's commands."""
+    names = list(make(row["family"], row["rep"])[0])
+    row["violation"] = violation(session_commands(row["session"]), names)
+    row["searched"] = bool(row["violation"])
+    return row
+
+
+def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=None):
+    """One run of `family` seed `rep` in CTX_MODE `mode` (default `arm`), with the
+    continual state file `state` (default a new empty one), which it may change."""
     files, turns, expected = make(family, rep)
-    repo = os.path.join(out, "runs", arm, family, f"r{rep}")
+    repo = os.path.join(out, "runs", tag or arm, family, f"r{rep}")
     make_repo(repo, files)
-    state = repo + ".state.json"
-    with open(state, "w") as f:
-        json.dump(EMPTY, f)
-    env = {"CTX_MODE": arm, "CTX_BUDGET": BUDGET}
+    if state is None:
+        state = repo + ".state.json"
+        with open(state, "w") as f:
+            json.dump(EMPTY, f)
+    env = {"CTX_MODE": mode or arm, "CTX_BUDGET": BUDGET}
     steps, session = [], None
     for turn in turns:
         r = rig(repo, turn, state, session, timeout=600, env=env)
@@ -191,14 +259,16 @@ def one(out, arm, family, rep):
     answer = steps[-1]["answer"] if len(steps) == len(turns) else ""
     score, ok = grade(family, answer, expected)
     compactions, edits = session_counts(session)
+    tokens, input_tokens, cached = session_usage(session)
+    broke = violation([c for s in steps for c in shell_commands(s["tool_calls"])], list(files))
     row = {"arm": arm, "family": family, "rep": rep, "success": ok, "score": round(score, 3),
-           "tokens": sum(s["tokens"] for s in steps), "input_tokens": sum(s["input_tokens"] for s in steps),
-           "cached_tokens": sum(s["cached_tokens"] for s in steps),
+           "tokens": tokens, "input_tokens": input_tokens, "cached_tokens": cached,
            "tool_calls": sum(len(s["tool_calls"]) for s in steps), "compactions": compactions, "ctx_edits": edits,
-           "searched": any(searched(s["tool_calls"]) for s in steps), "seconds": sum(s["seconds"] for s in steps),
-           "errors": [s["error"] for s in steps if s["error"]], "session": session, "answer": answer[-600:]}
-    with open(os.path.join(out, "results.jsonl"), "a") as f:
-        f.write(json.dumps(row) + "\n")
+           "searched": bool(broke), "violation": broke, "seconds": sum(s["seconds"] for s in steps),
+           "errors": [s["error"] for s in steps if s["error"]], "session": session, "repo": repo, "answer": answer[-600:]}
+    if log:
+        with open(os.path.join(out, log), "a") as f:
+            f.write(json.dumps(row) + "\n")
     print(f"[{arm}] {family} r{rep}: ok={ok} score={row['score']} tokens={row['tokens']} "
           f"compactions={compactions} edits={edits}", flush=True)
     return row
@@ -208,6 +278,7 @@ def report(out):
     rows = [json.loads(l) for l in open(os.path.join(out, "results.jsonl"))]
     for r in rows:
         r["tokens"], r["input_tokens"], r["cached_tokens"] = session_usage(r["session"])
+        rescore(r)
     lines = ["| arm | family | success | mean score | mean tokens | mean uncached input | summaries | ctx edits | searched |",
              "|---|---|---|---|---|---|---|---|---|"]
     for family in FAMILIES + ["all"]:
@@ -228,7 +299,7 @@ def report(out):
 
 
 def selftest():
-    for family in FAMILIES:
+    for family in FAMILIES + ["ledger"]:
         files, turns, expected = make(family, 0)
         assert make(family, 0) == (files, turns, expected), "not deterministic"
         chars = sum(len(t) for t in files.values())
@@ -252,7 +323,7 @@ def selftest():
             while name != "none":
                 seen.append(name)
                 text = files[name]
-                assert sum(k in text for k in expected) == 1, name
+                assert family == "ledger" or sum(k in text for k in expected) == 1, name
                 name = re.search(r"NEXT FILE: (\S+)", text).group(1)
             assert sorted(seen) == sorted(files), "chain does not visit every file once"
         print(f"{family}: {len(files)} files, ~{chars // 4:,} tokens, {len(turns)} turns, expected {expected}")

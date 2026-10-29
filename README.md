@@ -89,14 +89,48 @@ turns), `rules` (exact report format given first, then 8 chained files).
   with no summary call in any run, and matched summary compaction.
 - It did not beat it: CLM used about 20% more tokens, 2-3x the tool calls,
   and was about 2x slower, since each edit is a tool call plus a re-read.
-- CLM broke the "read only with cat" instruction in 6/15 runs (summary
-  1/15), mostly `tail` for the kv line-number questions and once `grep` for
-  rules. Counting only clean runs: summary 13/15, CLM 8/15.
+- CLM broke the "read only with cat" instruction in 4/15 runs (summary
+  1/15), mostly `tail`/`wc` for the kv line-number questions. Counting only
+  clean runs (right and no rule broken): summary 13/15, CLM 10/15. (The
+  checker runs on every shell command in the session log and ignores
+  commands that only edit the context file.)
 - Its one rules failure dropped the `INC-` prefix, a format detail lost while
   rewriting its context. Summary's one failure added a preamble line.
 - `keep_last` loses early facts, as expected: it is the floor.
 
 Raw results: `eval/results/experiment_b/`.
+
+## Experiment C: can the harness learn better context management?
+
+`eval/experiment_c.py`: CLM learning chains, 3 repeats per arm, 6 episodes
+each (needles, kv, rules, two seeds). Each episode is the task, a review
+(right or wrong without the answers, any broken instruction, its token cost
+against summary compaction), then `/refine` focused on context management.
+`ungated` keeps every lesson; `gated` keeps a changed state only if a fixed
+gate suite (one seed per family) loses no clean run (rerun to confirm) and
+uses at most 1.25x the tokens. Tested on 24 fresh runs per arm, including
+the held-out `ledger` family.
+
+| arm | clean | correct | broke read-only | mean tokens | ctx edits | tool calls |
+|---|---|---|---|---|---|---|
+| summary (no CLM) | 18/24 | 21/24 | 3/24 | 256K | 0 | 8.8 |
+| clm, empty state | 18/24 | 21/24 | 3/24 | 256K | 7.8 | 17.8 |
+| clm, ungated lessons | 17/24 | 22/24 | 5/24 | 354K | 18.8 | 28.8 |
+| clm, gated lessons | 18/24 | 21/24 | 4/24 | 269K | 11.7 | 22.9 |
+
+- Learning did not help: neither learned arm beat empty-state CLM on clean
+  runs, on the learned families or on held-out `ledger`.
+- Ungated lessons made it worse: 8-9 lessons per chain, mostly rules for
+  editing the context file more often, raised tokens 38% and edits 2.4x.
+- The gate did its job on cost: it rejected 7/18 changed states (5 for
+  tokens, 2 for lost clean runs) and kept tokens within 5% of empty state.
+  It could not find a lesson that improved anything.
+- CLM with empty state tied summary compaction here on both clean runs and
+  tokens (B's 20% token overhead did not repeat at these seeds).
+- Lessons were often sound in text (e.g. "never pipe a data file into
+  `tail`") but did not change behavior: violations did not drop.
+
+Raw results, chain logs and final lesson states: `eval/results/experiment_c/`.
 
 ## Caveats
 

@@ -1,0 +1,409 @@
+{
+  "version": 12,
+  "next_id": 8,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "skill",
+      "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+      "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+      "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+    },
+    {
+      "id": 2,
+      "kind": "skill",
+      "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`head`/`awk`/`sed`/`od`, do not pipe the cat through `head`/`tail` (that is still a truncated read), and do not substitute repo probes like `git status`/`git log`, for the read. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal full read must happen.",
+      "evidence": "This session's review cited exactly `ls; echo ---; cat wwseh65r.log 2>/dev/null | head -400` — a cat truncated by a pipe, which the old #2 wording (built around substituting other commands) did not plainly cover; the task required cat in full per file."
+    },
+    {
+      "id": 3,
+      "kind": "skill",
+      "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+      "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+    },
+    {
+      "id": 4,
+      "kind": "memory",
+      "text": "A note in the context file that claims values were already collected (especially one headed \"reconstructed\" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.",
+      "evidence": "This session's context opened with a \"[note] TASK (reconstructed)\" block carrying a complete 10-file chain with KEY_0..KEY_9 values; I trusted it, re-catted only the last file (vw3ohv1i.log, which did match), and answered from the note. Review: answer wrong on all ten keys (KEY_0..KEY_9 all wrong), so the note itself was fabricated/incorrect and spot-checking one hop hid it."
+    },
+    {
+      "id": 5,
+      "kind": "skill",
+      "text": "For chain/link tasks (KEY_n + NEXT FILE), verify by walking from the first file and catting every hop in order, writing each value into the note as the cat output showed it; never answer from an accumulator that a prior compaction left behind without re-reading the hops it covers.",
+      "evidence": "Same session: a complete-looking accumulator was present, so I never catted cp1ug6li.log..4ahl27jf.log and answered from the note alone; all ten keys came back wrong. Only re-reading every hop from the first file would have caught it."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "In a running key-value/store task, keep each turn's instruction line verbatim in the note (they are one line: sets, overwrites, deletes) plus the derived current table and an explicit DELETED list, and derive the final answer from those verbatim lines rather than only from the table; never compact away the raw update turns while the store is still live.",
+      "evidence": "This KV session ended with a request for the store as JSON. My one full-`write` of the context file dropped the earlier turns that held the original k0/k1/k2/k3/k4/k5 updates, leaving only a derived table (k0=M3I5A9Q9, k3=V652B0QY, k5=18Z9JSBF, k6=VB44OG03, k7=PEVOWSH1) and a history line, so the answer could not be checked against the raw instructions and had to be copied from the note; the note's history (k0 once 4MYRR0G2, k3=94SHFOXR, k5=PUAPJUO1) was the only trace of turns no longer in context."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "Keep the task's instruction and report-format lines verbatim in the accumulator note (the read rule plus the exact output fields/order), and draft the final answer against them field by field; when compacting, drop raw dumps but never the task's own rules, or the answer will be shaped from memory and fail the format check.",
+      "evidence": "This chain task ended with 0% of incident lines passing the report-rule check: my first compaction kept only the File/Incident/Severity/NEXT table and dropped the task's report-format rules, so the final report was assembled from memory of the rules rather than checked against them. A gate that re-checks the final reply against the verbatim rules saved in the note would catch this."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full\", run the cat but filter what reaches context: dumps of ~300 filler lines each cost ~200k tokens here; `grep -nE 'KEY_|NEXT FILE'`-style filters on the same one-command-per-file read keep only the values and the next-file pointer.",
+          "evidence": "Tasks reading od5u8ib3.log, 4rur8l8e.log, ieyd62dq.log in full cost 199,477 tokens across 12 tool calls, while only the KEY_n lines and NEXT FILE pointers were needed for the answer."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full\", run the cat but filter what reaches context: dumps of ~300 filler lines each cost ~200k tokens here; `grep -nE 'KEY_|NEXT FILE'`-style filters on the same one-command-per-file read keep only the values and the next-file pointer.",
+          "evidence": "Tasks reading od5u8ib3.log, 4rur8l8e.log, ieyd62dq.log in full cost 199,477 tokens across 12 tool calls, while only the KEY_n lines and NEXT FILE pointers were needed for the answer."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and rewrite that whole notes section with one `write` of the full file: string surgery on an already-duplicated block left two copies of the same note wasting budget.",
+          "evidence": "My first context edit left two identical note blocks (duplicate KEY_0..KEY_6 lines); only a full-file rewrite with a single note block fixed it, and the exact KEY values had to survive verbatim to answer."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full\", run the cat but filter what reaches context: dumps of ~300 filler lines each cost ~200k tokens here; `grep -nE 'KEY_|NEXT FILE'`-style filters on the same one-command-per-file read keep only the values and the next-file pointer.",
+          "evidence": "Tasks reading od5u8ib3.log, 4rur8l8e.log, ieyd62dq.log in full cost 199,477 tokens across 12 tool calls, while only the KEY_n lines and NEXT FILE pointers were needed for the answer."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and rewrite that whole notes section with one `write` of the full file: string surgery on an already-duplicated block left two copies of the same note wasting budget.",
+          "evidence": "My first context edit left two identical note blocks (duplicate KEY_0..KEY_6 lines); only a full-file rewrite with a single note block fixed it, and the exact KEY values had to survive verbatim to answer."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`awk`/`od` probes. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session's review said the answer was correct but the instruction was broken because I ran `ls; echo ---; tail -n 1 chunk_6.txt | sed ...; awk END{print NR}; tail -c 60 | od -c` instead of `cat chunk_6.txt`, so the required full read never happened even though the last-number answer (0319, 320 lines) was right."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full\", run the cat but filter what reaches context: dumps of ~300 filler lines each cost ~200k tokens here; `grep -nE 'KEY_|NEXT FILE'`-style filters on the same one-command-per-file read keep only the values and the next-file pointer.",
+          "evidence": "Tasks reading od5u8ib3.log, 4rur8l8e.log, ieyd62dq.log in full cost 199,477 tokens across 12 tool calls, while only the KEY_n lines and NEXT FILE pointers were needed for the answer."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`awk`/`od` probes. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session's review said the answer was correct but the instruction was broken because I ran `ls; echo ---; tail -n 1 chunk_6.txt | sed ...; awk END{print NR}; tail -c 60 | od -c` instead of `cat chunk_6.txt`, so the required full read never happened even though the last-number answer (0319, 320 lines) was right."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`awk`/`od` probes. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session's review said the answer was correct but the instruction was broken because I ran `ls; echo ---; tail -n 1 chunk_6.txt | sed ...; awk END{print NR}; tail -c 60 | od -c` instead of `cat chunk_6.txt`, so the required full read never happened even though the last-number answer (0319, 320 lines) was right."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`awk`/`od` probes. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session's review said the answer was correct but the instruction was broken because I ran `ls; echo ---; tail -n 1 chunk_6.txt | sed ...; awk END{print NR}; tail -c 60 | od -c` instead of `cat chunk_6.txt`, so the required full read never happened even though the last-number answer (0319, 320 lines) was right."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+          "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`awk`/`od` probes. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session's review said the answer was correct but the instruction was broken because I ran `ls; echo ---; tail -n 1 chunk_6.txt | sed ...; awk END{print NR}; tail -c 60 | od -c` instead of `cat chunk_6.txt`, so the required full read never happened even though the last-number answer (0319, 320 lines) was right."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+          "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "A note in the context file that claims values were already collected (especially one headed \"reconstructed\" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.",
+          "evidence": "This session's context opened with a \"[note] TASK (reconstructed)\" block carrying a complete 10-file chain with KEY_0..KEY_9 values; I trusted it, re-catted only the last file (vw3ohv1i.log, which did match), and answered from the note. Review: answer wrong on all ten keys (KEY_0..KEY_9 all wrong), so the note itself was fabricated/incorrect and spot-checking one hop hid it."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "update #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`awk`/`od` probes. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session's review said the answer was correct but the instruction was broken because I ran `ls; echo ---; tail -n 1 chunk_6.txt | sed ...; awk END{print NR}; tail -c 60 | od -c` instead of `cat chunk_6.txt`, so the required full read never happened even though the last-number answer (0319, 320 lines) was right."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+          "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "A note in the context file that claims values were already collected (especially one headed \"reconstructed\" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.",
+          "evidence": "This session's context opened with a \"[note] TASK (reconstructed)\" block carrying a complete 10-file chain with KEY_0..KEY_9 values; I trusted it, re-catted only the last file (vw3ohv1i.log, which did match), and answered from the note. Review: answer wrong on all ten keys (KEY_0..KEY_9 all wrong), so the note itself was fabricated/incorrect and spot-checking one hop hid it."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "For chain/link tasks (KEY_n + NEXT FILE), verify by walking from the first file and catting every hop in order, writing each value into the note as the cat output showed it; never answer from an accumulator that a prior compaction left behind without re-reading the hops it covers.",
+          "evidence": "Same session: a complete-looking accumulator was present, so I never catted cp1ug6li.log..4ahl27jf.log and answered from the note alone; all ten keys came back wrong. Only re-reading every hop from the first file would have caught it."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`head`/`awk`/`sed`/`od`, and do not substitute repo probes like `git status`/`git log`, for the read. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session broke that instruction differently from the cases the lesson listed: review cited `cd .../r111 && git status --short | head; git log --oneline | head` run instead of `cat` on the data files, so no data file was read at all. The forbidden-substitute list should cover repo/probe commands too."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+          "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "A note in the context file that claims values were already collected (especially one headed \"reconstructed\" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.",
+          "evidence": "This session's context opened with a \"[note] TASK (reconstructed)\" block carrying a complete 10-file chain with KEY_0..KEY_9 values; I trusted it, re-catted only the last file (vw3ohv1i.log, which did match), and answered from the note. Review: answer wrong on all ten keys (KEY_0..KEY_9 all wrong), so the note itself was fabricated/incorrect and spot-checking one hop hid it."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "For chain/link tasks (KEY_n + NEXT FILE), verify by walking from the first file and catting every hop in order, writing each value into the note as the cat output showed it; never answer from an accumulator that a prior compaction left behind without re-reading the hops it covers.",
+          "evidence": "Same session: a complete-looking accumulator was present, so I never catted cp1ug6li.log..4ahl27jf.log and answered from the note alone; all ten keys came back wrong. Only re-reading every hop from the first file would have caught it."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "update #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`head`/`awk`/`sed`/`od`, and do not substitute repo probes like `git status`/`git log`, for the read. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal read must happen.",
+          "evidence": "This session broke that instruction differently from the cases the lesson listed: review cited `cd .../r111 && git status --short | head; git log --oneline | head` run instead of `cat` on the data files, so no data file was read at all. The forbidden-substitute list should cover repo/probe commands too."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+          "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "A note in the context file that claims values were already collected (especially one headed \"reconstructed\" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.",
+          "evidence": "This session's context opened with a \"[note] TASK (reconstructed)\" block carrying a complete 10-file chain with KEY_0..KEY_9 values; I trusted it, re-catted only the last file (vw3ohv1i.log, which did match), and answered from the note. Review: answer wrong on all ten keys (KEY_0..KEY_9 all wrong), so the note itself was fabricated/incorrect and spot-checking one hop hid it."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "For chain/link tasks (KEY_n + NEXT FILE), verify by walking from the first file and catting every hop in order, writing each value into the note as the cat output showed it; never answer from an accumulator that a prior compaction left behind without re-reading the hops it covers.",
+          "evidence": "Same session: a complete-looking accumulator was present, so I never catted cp1ug6li.log..4ahl27jf.log and answered from the note alone; all ten keys came back wrong. Only re-reading every hop from the first file would have caught it."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a running key-value/store task, keep each turn's instruction line verbatim in the note (they are one line: sets, overwrites, deletes) plus the derived current table and an explicit DELETED list, and derive the final answer from those verbatim lines rather than only from the table; never compact away the raw update turns while the store is still live.",
+          "evidence": "This KV session ended with a request for the store as JSON. My one full-`write` of the context file dropped the earlier turns that held the original k0/k1/k2/k3/k4/k5 updates, leaving only a derived table (k0=M3I5A9Q9, k3=V652B0QY, k5=18Z9JSBF, k6=VB44OG03, k7=PEVOWSH1) and a history line, so the answer could not be checked against the raw instructions and had to be copied from the note; the note's history (k0 once 4MYRR0G2, k3=94SHFOXR, k5=PUAPJUO1) was the only trace of turns no longer in context."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "When a chained-file task says \"cat each file in full, one file per command\", run that literal cat (see #2), but treat the dump as disposable: extract the values into the accumulator note and compact the dump away in the same reply, so filler lines never accumulate across files. Never substitute grep/awk/tail for the cat itself; filtering the output that reaches context is only legitimate when the task does not require the literal full read.",
+          "evidence": "This session's task required literal `cat` in full per file, so the grep-filter advice in the old #0 could not be used; I ran the cats correctly but only compacted 3 times over 9 files, so full dumps of filler accumulated and cost 194,035 tokens for an answer whose whole content was 8 incident lines."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Keep a small exact accumulator (key/value table plus the next pointer) in the context file word for word, and change it with one full `write` of the notes section or one `edit` anchored on unique text: a python `str.replace` over the whole file matched two places and duplicated a note line.",
+          "evidence": "This session a python str.replace of 'chunk_5.txt: 0319' inserted the chunk_6 entry twice (lines 23 and 28 of the context file), the same duplication class the old wording warned about; the kv values still had to survive verbatim to answer the JSON request."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "When the task says to read a file with `cat` (in full), run that `cat` command on the named file, even if only one fact is needed afterwards; do not substitute `ls`/`tail`/`head`/`awk`/`sed`/`od`, do not pipe the cat through `head`/`tail` (that is still a truncated read), and do not substitute repo probes like `git status`/`git log`, for the read. Extract the derived fact (e.g. line count, last numbered line) into the context note and let the raw dump be compacted, but the literal full read must happen.",
+          "evidence": "This session's review cited exactly `ls; echo ---; cat wwseh65r.log 2>/dev/null | head -400` — a cat truncated by a pipe, which the old #2 wording (built around substituting other commands) did not plainly cover; the task required cat in full per file."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "In a long read-collect loop (file chains, log sweeps), edit the context file after every read, not at the end: one python3 rewrite that keeps the first block plus a single `[[CTX new note]]` accumulator (values word for word + next pointer) and drops all earlier tool-result blocks. The note is the only thing that must survive; keep it exact because the answer is usually copied from it verbatim.",
+          "evidence": "On the 8-file rm2pr2oc.log chain I made 3 context edits for 9 reads and spent 194,035 tokens, while a single compacted note (8 incident lines + total) was all the final report needed; the harness that summarized for me spent about the same because the raw dumps were never removed early."
+        },
+        {
+          "id": 4,
+          "kind": "memory",
+          "text": "A note in the context file that claims values were already collected (especially one headed \"reconstructed\" or written by an external summarizer) is an unverified claim, not data: if the answer is copied from it, rebuild it from literal reads first.",
+          "evidence": "This session's context opened with a \"[note] TASK (reconstructed)\" block carrying a complete 10-file chain with KEY_0..KEY_9 values; I trusted it, re-catted only the last file (vw3ohv1i.log, which did match), and answered from the note. Review: answer wrong on all ten keys (KEY_0..KEY_9 all wrong), so the note itself was fabricated/incorrect and spot-checking one hop hid it."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "For chain/link tasks (KEY_n + NEXT FILE), verify by walking from the first file and catting every hop in order, writing each value into the note as the cat output showed it; never answer from an accumulator that a prior compaction left behind without re-reading the hops it covers.",
+          "evidence": "Same session: a complete-looking accumulator was present, so I never catted cp1ug6li.log..4ahl27jf.log and answered from the note alone; all ten keys came back wrong. Only re-reading every hop from the first file would have caught it."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "In a running key-value/store task, keep each turn's instruction line verbatim in the note (they are one line: sets, overwrites, deletes) plus the derived current table and an explicit DELETED list, and derive the final answer from those verbatim lines rather than only from the table; never compact away the raw update turns while the store is still live.",
+          "evidence": "This KV session ended with a request for the store as JSON. My one full-`write` of the context file dropped the earlier turns that held the original k0/k1/k2/k3/k4/k5 updates, leaving only a derived table (k0=M3I5A9Q9, k3=V652B0QY, k5=18Z9JSBF, k6=VB44OG03, k7=PEVOWSH1) and a history line, so the answer could not be checked against the raw instructions and had to be copied from the note; the note's history (k0 once 4MYRR0G2, k3=94SHFOXR, k5=PUAPJUO1) was the only trace of turns no longer in context."
+        }
+      ]
+    }
+  ]
+}
