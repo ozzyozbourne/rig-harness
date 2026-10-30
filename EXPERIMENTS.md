@@ -118,11 +118,27 @@ family.
 ## Measurement notes
 
 - The read-only checker scans every shell command in the session log. It
-  flags only filters (`tail`, `wc`, `grep`...) run on data files, and ignores
-  scripts that only edit the context file. A first version over-counted CLM
-  violations in B (6/15, corrected to 4/15).
-- Tokens come from each session's own usage record, not from summing exit
-  events, which repeat running totals on resumed turns.
+  flags filters (`tail`, `wc`, `grep`...) run on data files and scripts that
+  open a data file by name, and ignores scripts that only edit the context
+  file. A first version over-counted CLM violations in B (6/15, corrected to
+  4/15). Each result row stores its verdict and its session's tokens, so the
+  reports rebuild from the repo alone.
+- Each run's usage is the sum of its own `turn_end` events. The `exit`
+  event repeats the session's running total on resumed turns; that inflated
+  the episode token and cost counts logged by `eval/run.py` and Experiment
+  A's chains (no reported number used them).
+- A failed shell command is one whose last line, the shell tool's status
+  line, is a non-zero exit, a kill or a timeout. Before, `[exit code N]`
+  anywhere in the output counted, including in a test's own output.
+- `ctx_mode` measures tokens as rig's compaction does (the provider's last
+  reported usage plus an estimate of newer messages), so all three arms of B
+  use the same measure of the budget. B and C ran with an earlier
+  four-characters-a-token estimate for `keep_last` and `clm`.
+- Compactions, CLM edits and `keep_last` cuts are counted from the asides
+  each leaves in the session log. B and C counted `ctx_mode`'s log records,
+  which is about two per edit.
+- `rig()` caps concurrent rig processes for the whole script (`EVAL_SLOTS`,
+  default 8), and the gate scripts run independent suites side by side.
 - Sample sizes are small (15–40 runs per cell). Differences of 1–2 runs are
   noise.
 

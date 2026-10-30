@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import experiment_a as ea  # noqa: E402
-from run import log, read_jsonl, test_run  # noqa: E402
+from run import log, parallel, read_jsonl, test_run  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FAMS = list(ea.CI)
@@ -44,29 +44,31 @@ CANDIDATES = {
 def base_suite(out, b, base):
     """The base's own suite; an item that fails is rerun once, and passing either time counts."""
     s = ea.suite(out, f"b{b}-base", base, FAMS)
-    for k in [k for k, v in s.items() if not v]:
-        s[k] = ea.run_item(out, f"b{b}-base-rerun", k, base)
+    failed = [k for k, v in s.items() if not v]
+    s.update(zip(failed, parallel([lambda k=k: ea.run_item(out, f"b{b}-base-rerun", k, base) for k in failed])))
     return s
 
 
 def one_base(out, b, base):
     ref = base_suite(out, b, base)
-    rows = []
-    for name, (harmful, text, fams) in CANDIDATES.items():
-        cand = os.path.join(out, "states", f"b{b}-{name}.json")
-        ea.add_lesson(base, cand, text)
-        tag = f"b{b}-{name}"
-        cs = ea.suite(out, tag, cand, FAMS)
-        strict, lost = ea.strict_admit(out, tag, cand, cs, ref)
-        tolerant = ea.admit(cs, ref)
-        row = {"base": b, "candidate": name, "harmful": harmful, "suite": cs, "base_suite": ref,
-               "tolerant_accept": tolerant, "strict_accept": strict, "confirmed_lost": lost}
-        log(out, "gate.jsonl", row)
-        print(f"[b{b}] {name}: tolerant={tolerant} strict={strict} lost={lost}", flush=True)
-        for fam in fams:
-            test_run(out, f"poison-{name}", b, fam, cand)
-        rows.append(row)
-    return rows
+    return parallel([lambda name=name: one_candidate(out, b, base, ref, name) for name in CANDIDATES])
+
+
+def one_candidate(out, b, base, ref, name):
+    """Both gates' verdicts on `name` added to `base`, and a harmful lesson's real harm."""
+    harmful, text, fams = CANDIDATES[name]
+    cand = os.path.join(out, "states", f"b{b}-{name}.json")
+    ea.add_lesson(base, cand, text)
+    tag = f"b{b}-{name}"
+    cs = ea.suite(out, tag, cand, FAMS)
+    strict, lost = ea.strict_admit(out, tag, cand, cs, ref)
+    tolerant = ea.admit(cs, ref)
+    row = {"base": b, "candidate": name, "harmful": harmful, "suite": cs, "base_suite": ref,
+           "tolerant_accept": tolerant, "strict_accept": strict, "confirmed_lost": lost}
+    log(out, "gate.jsonl", row)
+    print(f"[b{b}] {name}: tolerant={tolerant} strict={strict} lost={lost}", flush=True)
+    parallel([lambda fam=fam: test_run(out, f"poison-{name}", b, fam, cand) for fam in fams])
+    return row
 
 
 def report(out):

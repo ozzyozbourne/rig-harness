@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -25,6 +26,10 @@ from tasks import FAMILIES  # noqa: E402
 
 MODEL = os.environ.get("EVAL_MODEL", "openrouter/z-ai/glm-5.3-flash")
 EMPTY = {"version": 0, "next_id": 0, "lessons": [], "history": []}
+# rig processes at once, across every thread of a script.
+SLOTS = threading.BoundedSemaphore(int(os.environ.get("EVAL_SLOTS", "8")))
+# The last line of a shell result says how the command ended.
+FAILED = re.compile(r"\[(exit code [1-9]\d*|killed by .*|timed out after .*)\]")
 
 
 def write_files(path, files):
@@ -42,19 +47,27 @@ def make_repo(path, files):
                    shell=True, cwd=path, check=True)
 
 
+def failed(output):
+    """Whether a shell result says its command failed, was killed or timed out."""
+    return bool(FAILED.fullmatch(str(output).rsplit("\n", 1)[-1]))
+
+
 def rig(repo, prompt, state, session=None, timeout=420, env=None):
-    """One `rig -p --json` run; returns a summary of its events."""
+    """One `rig -p --json` run; returns a summary of its events. Usage is this
+    run's own: the sum of its turns, not the session's running total."""
     cmd = ["rig", "-m", MODEL, "-p", "--json"]
     if session:
         cmd += ["-r", session]
     cmd.append(prompt)
     env = {**os.environ, "CONTINUAL_STATE": state, **(env or {})}
-    start = time.time()
-    try:
-        out = subprocess.run(cmd, cwd=repo, env=env, stdin=subprocess.DEVNULL, capture_output=True,
-                             text=True, timeout=timeout).stdout
-    except subprocess.TimeoutExpired as e:
-        out = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
+    with SLOTS:
+        start = time.time()
+        try:
+            out = subprocess.run(cmd, cwd=repo, env=env, stdin=subprocess.DEVNULL, capture_output=True,
+                                 text=True, timeout=timeout).stdout
+        except subprocess.TimeoutExpired as e:
+            out = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
+        seconds = round(time.time() - start, 1)
     events = []
     for line in out.splitlines():
         try:
@@ -63,22 +76,23 @@ def rig(repo, prompt, state, session=None, timeout=420, env=None):
             pass
     exit_ = next((e for e in events if e.get("type") == "exit"), {})
     calls = [e for e in events if e.get("type") == "tool_call"]
-    failed = sum(1 for e in events if e.get("type") == "tool_result" and e.get("name") == "shell"
-                 and re.search(r"\[exit code [1-9]\d*\]", str(e.get("output", ""))))
-    usage = exit_.get("usage") or {}
-    tokens = usage.get("tokens") or {}
+    turns = [e.get("usage") or {} for e in events if e.get("type") == "turn_end"]
+
+    def total(key):
+        return sum((u.get("tokens") or {}).get(key, 0) for u in turns)
     return {
         "code": exit_.get("code"),
         "session": exit_.get("session") or next((e.get("session") for e in events if e.get("type") == "ready"), None),
         "answer": exit_.get("answer") or "",
         "error": exit_.get("error"),
         "tool_calls": [{"name": c.get("name"), "args": c.get("args")} for c in calls],
-        "failed_commands": failed,
-        "cost": usage.get("cost", 0.0),
-        "tokens": tokens.get("total_tokens", 0),
-        "input_tokens": tokens.get("input_tokens", 0),
-        "cached_tokens": tokens.get("cached_input_tokens", 0),
-        "seconds": round(time.time() - start, 1),
+        "failed_commands": sum(1 for e in events if e.get("type") == "tool_result" and e.get("name") == "shell"
+                               and failed(e.get("output", ""))),
+        "cost": sum(u.get("cost", 0.0) for u in turns),
+        "tokens": total("total_tokens"),
+        "input_tokens": total("input_tokens"),
+        "cached_tokens": total("cached_input_tokens"),
+        "seconds": seconds,
     }
 
 
@@ -114,6 +128,13 @@ def read_jsonl(path):
 
 def shell_commands(calls):
     return [c["args"].get("command", "") for c in calls if c["name"] == "shell" and isinstance(c["args"], dict)]
+
+
+def parallel(calls):
+    """Runs each zero-argument call at once and returns their results in order.
+    `rig` caps how many rig processes run, so nesting this is safe."""
+    with cf.ThreadPoolExecutor(max(1, len(calls))) as pool:
+        return [job.result() for job in [pool.submit(call) for call in calls]]
 
 
 def rate(xs):

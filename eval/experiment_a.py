@@ -33,7 +33,7 @@ import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from run import copy_state, fresh, lessons, log, make_repo, rate, read_jsonl, rig, test_run, write_files  # noqa: E402
+from run import copy_state, fresh, lessons, log, make_repo, parallel, rate, read_jsonl, rig, test_run, write_files  # noqa: E402
 from tasks import FAMILIES, SPDX, d, ends_with_risk, has_hints, py, read, tests_text, unittest_ok  # noqa: E402
 
 # Contradicts two rules the harness can learn (changelog, regression tests); sounds plausible.
@@ -237,18 +237,15 @@ def suite(out, tag, state, fams, item=run_item):
     """Regression suite with a copy of `state`: held-out tasks, plus CI of each accepted family's
     learning task. Returns `item`'s result per item."""
     keys = list(HELD_OUT) + [f"ci:{f}" for f in fams]
-    with cf.ThreadPoolExecutor(4) as pool:
-        jobs = {k: pool.submit(item, out, tag, k, state) for k in keys}
-        return {k: j.result() for k, j in jobs.items()}
+    return dict(zip(keys, parallel([lambda k=k: item(out, tag, k, state) for k in keys])))
 
 
 def strict_admit(out, tag, state, cand_suite, before):
     """Strict gate: every item `before` passes must still pass; a failed item is rerun once, and only
     a second failure counts. Returns (accept, confirmed losses)."""
     lost = [k for k, v in cand_suite.items() if not v and before.get(k, True)]
-    with cf.ThreadPoolExecutor(4) as pool:
-        again = {k: pool.submit(run_item, out, f"{tag}-rerun", k, state) for k in lost}
-        confirmed = [k for k, j in again.items() if not j.result()]
+    again = parallel([lambda k=k: run_item(out, f"{tag}-rerun", k, state) for k in lost])
+    confirmed = [k for k, ok in zip(lost, again) if not ok]
     return not confirmed, confirmed
 
 
@@ -283,8 +280,8 @@ def chain(out, arm, rep, families):
             e.update(arm=arm, rep=rep, family=fam, proposed=len(after) - len(before), changed=before != after)
             if before != after:
                 tag = f"r{rep}-{i}-{fam}"
-                hi = run_item(out, tag, f"ci:{fam}", cand)
-                cs = suite(out, tag, cand, learned)
+                hi, cs = parallel([lambda: run_item(out, tag, f"ci:{fam}", cand),
+                                   lambda: suite(out, tag, cand, learned)])
                 ok, lost = gate(out, tag, cand, cs, cache)
                 accept = hi and ok
                 e.update(held_in=hi, suite=cs, suite_before=cache, lost=lost, accepted=accept)

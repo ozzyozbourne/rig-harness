@@ -17,15 +17,20 @@
 //!   budget the request carries a reminder. The default compaction stays as
 //!   the fallback for an agent that lets its context overflow.
 //!
-//! Every edit is a recorded change by `Author::plugin("ctx_mode")`, so the
-//! session log keeps what was removed.
+//! Tokens are measured as rig's compaction measures them: the provider's
+//! reported usage of the last reply plus an estimate of the messages after
+//! it, or the whole request's estimate when that no longer holds. Every edit
+//! is a recorded change by `Author::plugin("ctx_mode")`, so the session log
+//! keeps what was removed, and each edit or cut also leaves a `ctx_mode.edit`
+//! or `ctx_mode.cut` aside, which an eval can count.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use rig_harness::prelude::*;
 use rig_harness::rig_core::completion::message::{Message as Msg, ToolCall, ToolResultContent, UserContent};
-use rig_harness::rig_memory::{SummaryLimits, estimate_tokens};
+use rig_harness::rig_core::conversation::Aside;
+use rig_harness::rig_memory::{Prepared, RequestStart, SummaryLimits, estimate_tokens, next_request_tokens};
 
 const NAME: &str = "ctx_mode";
 /// Tokens before the budget at which a `clm` request carries a reminder.
@@ -98,17 +103,26 @@ fn shrink_window(mut calls: Query<&mut Adapted, Added<Adapted>>, config: Res<Con
     }
 }
 
-/// Tokens of a request's system prompt and tools, at about four characters a token.
-fn overhead(request: &ModelRequest) -> u64 {
-    let prompt = request.prompt.as_ref().map_or(0, |p| p.text().len());
-    let tools = serde_json::to_string(&request.request.tools).map_or(0, |t| t.len());
-    (prompt + tools) as u64 / 4
+/// What a call that sends `conversation` with `request`'s prompt and tools
+/// starts with, and its tokens: anchored on the agent's last reported usage
+/// when `sent`, the start of the call that reply answered, still holds,
+/// else the whole request's estimate (rig-memory's `next_request_tokens`).
+fn measure(
+    conversation: &Conversation,
+    request: &ModelRequest,
+    last: &LastUsage,
+    sent: Option<RequestStart>,
+) -> (u64, u64, RequestStart) {
+    let prompt = request.prompt.as_ref().map(|p| p.text());
+    let prepared = Prepared { model: "", prompt: prompt.as_deref(), tools: &request.request.tools, history: conversation };
+    let whole = prepared.whole_tokens();
+    (next_request_tokens(last.0.as_ref(), sent, &prepared), whole, prepared.start())
 }
 
-/// A rough count of the tokens a call for `conversation` sends: its messages
-/// by rig-memory's estimate, plus the request's [`overhead`].
-fn used(conversation: &Conversation, request: &ModelRequest) -> u64 {
-    estimate_tokens(conversation.messages()) + overhead(request)
+/// Records that `conversation` was changed by this plugin as `kind`.
+fn mark(conversation: &mut Conversation, kind: &str) {
+    let after = conversation.entries().last().map(|e| e.id);
+    conversation.add_aside(Aside::new(kind, Author::plugin(NAME), serde_json::Value::Null).after(after));
 }
 
 /// `keep_last`: when the request reaches the budget, every message but the
@@ -116,16 +130,20 @@ fn used(conversation: &Conversation, request: &ModelRequest) -> u64 {
 /// summary.
 fn keep_last(
     mut calls: Query<(&mut ModelRequest, &ForAgent), (Added<Admitted>, With<TurnCall>)>,
-    mut agents: Query<&mut Conversation>,
+    mut agents: Query<(&mut Conversation, &LastUsage)>,
+    mut sent: Local<HashMap<Entity, RequestStart>>,
     config: Res<Config>,
 ) {
     for (mut request, &ForAgent(agent)) in &mut calls {
-        let Ok(mut conversation) = agents.get_mut(agent) else { continue };
-        if used(&conversation, &request) < config.budget {
+        let Ok((mut conversation, last)) = agents.get_mut(agent) else { continue };
+        let (used, whole, start) = measure(&conversation, &request, last, sent.get(&agent).copied());
+        sent.insert(agent, start);
+        if used < config.budget {
             continue;
         }
         let messages = conversation.messages();
-        let mut kept = overhead(&request);
+        // The prompt and tools, which every request sends.
+        let mut kept = whole.saturating_sub(estimate_tokens(messages));
         let mut from = messages.len();
         while from > 1 {
             kept += estimate_tokens(&messages[from - 1..from]);
@@ -141,7 +159,9 @@ fn keep_last(
         }
         conversation.splice(1..from, [], Author::plugin(NAME));
         conversation.normalize(Author::plugin(NAME));
+        mark(&mut conversation, "ctx_mode.cut");
         request.history = Some(conversation.request_view());
+        sent.insert(agent, measure(&conversation, &request, last, None).2);
     }
 }
 
@@ -318,24 +338,27 @@ fn apply_edits(conversation: &mut Conversation, mirror: &Mirror, on_disk: &str) 
     entries.extend(new.into_iter().filter_map(|at| conversation.entry(at)));
     conversation.set_entries(entries, Author::plugin(NAME));
     conversation.normalize(Author::plugin(NAME));
+    mark(conversation, "ctx_mode.edit");
 }
 
 /// `clm`: before each turn call, the agent's edits of its file become its
 /// conversation; then the file is written afresh.
 fn sync(
     mut calls: Query<(&mut ModelRequest, &ForAgent), (Added<Admitted>, With<TurnCall>)>,
-    mut agents: Query<(&mut Conversation, &mut Mirror)>,
+    mut agents: Query<(&mut Conversation, &mut Mirror, &LastUsage)>,
+    mut sent: Local<HashMap<Entity, RequestStart>>,
     config: Res<Config>,
 ) {
     for (mut request, &ForAgent(agent)) in &mut calls {
-        let Ok((mut conversation, mut mirror)) = agents.get_mut(agent) else { continue };
+        let Ok((mut conversation, mut mirror, last)) = agents.get_mut(agent) else { continue };
         let on_disk = std::fs::read_to_string(&mirror.path).unwrap_or_default();
         if !mirror.written.is_empty() && on_disk != mirror.written {
             apply_edits(&mut conversation, &mirror, &on_disk);
             request.history = Some(conversation.request_view());
         }
         write(&conversation, &mut mirror);
-        let tokens = used(&conversation, &request);
+        let (tokens, _, start) = measure(&conversation, &request, last, sent.get(&agent).copied());
+        sent.insert(agent, start);
         if tokens + REMIND_BEFORE >= config.budget
             && let Some(history) = request.history.as_mut()
         {

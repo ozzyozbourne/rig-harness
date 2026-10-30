@@ -22,6 +22,7 @@ Families, each about 40-50K tokens of tool output through a 32K budget:
 """
 
 import argparse
+import collections
 import concurrent.futures as cf
 import glob
 import json
@@ -173,37 +174,29 @@ def session_log_lines(session):
 
 
 def session_counts(session):
-    """(summary compactions, ctx_mode edits) in a session's logs."""
-    compactions = edits = 0
+    """(summary compactions, ctx_mode edits and cuts) in a session's logs, from
+    the asides each one leaves."""
+    kinds = collections.Counter()
     for line in session_log_lines(session):
-        if '"kind":"rig.compaction"' in line:
-            compactions += 1
-        elif '"by":{"kind":{"plugin":"ctx_mode"}}' in line and '"type":"aside"' not in line:
-            edits += 1
-    return compactions, edits
-
-
-def session_usage(session):
-    """(total, input, cached) tokens of a session's main agent, from its last
-    saved usage; a resumed run's exit event repeats the running total."""
-    best = (0, 0, 0)
-    for line in session_log_lines(session):
-        if '"key":"rig_basics::telemetry::usage::AgentUsage"' in line:
-            t = json.loads(line)["value"]["total"]["tokens"]
-            best = max(best, (t.get("total_tokens", 0), t.get("input_tokens", 0), t.get("cached_input_tokens", 0)))
-    return best
+        if '"type":"aside"' in line:
+            kinds[((json.loads(line).get("aside") or {}).get("kind"))] += 1
+    return kinds["rig.compaction"], kinds["ctx_mode.edit"] + kinds["ctx_mode.cut"]
 
 
 FILTERS = {"grep", "rg", "awk", "sed", "head", "tail", "wc", "cut", "sort", "uniq", "od", "xxd", "strings", "less"}
 
 
 def violation(commands, names):
-    """The first command that runs a filter (`tail`, `wc`, `grep`...) on a data
-    file (one of `names`), directly or through a pipe, or None. Heredoc bodies
-    and quoted text are skipped: a script that edits the context file may
-    mention data files in its note. A script that opens data files itself is
-    not caught."""
+    """The first command that reads a data file (one of `names`) other than with
+    a plain `cat`, or None: a filter (`tail`, `wc`, `grep`...) run on it directly
+    or through a pipe, or a script that opens it by name (`open('x.log')`,
+    `Path("x.log")`). Other heredoc bodies and quoted text are skipped: a script
+    that edits the context file may mention data files in its note. A script
+    that builds a data file's name before opening it is not caught."""
+    opens = re.compile(r"\b(?:open|Path|read_text|readlines)\s*\(\s*[rbf]?['\"]([^'\"]+)['\"]")
     for cmd in commands:
+        if any(os.path.basename(m) in names for m in opens.findall(cmd)):
+            return cmd
         c = re.sub(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2[ \t]*(?=\n|$)", "", cmd, flags=re.S)
         c = re.sub(r"'[^']*'|\"[^\"]*\"", "''", c)
         for pipeline in re.split(r";|&&|\|\||\n", c):
@@ -235,14 +228,6 @@ def session_commands(session):
     return out
 
 
-def rescore(row):
-    """`row` with its read-only check redone from its session's commands."""
-    names = list(make(row["family"], row["rep"])[0])
-    row["violation"] = violation(session_commands(row["session"]), names)
-    row["searched"] = bool(row["violation"])
-    return row
-
-
 def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=None):
     """One run of `family` seed `rep` in CTX_MODE `mode` (default `arm`), with the
     continual state file `state` (default a new empty one), which it may change."""
@@ -262,10 +247,9 @@ def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=N
     answer = steps[-1]["answer"] if len(steps) == len(turns) else ""
     score, ok = grade(family, answer, expected)
     compactions, edits = session_counts(session)
-    tokens, input_tokens, cached = session_usage(session)
     broke = violation(session_commands(session), list(files))
     row = {"arm": arm, "family": family, "rep": rep, "success": ok, "score": round(score, 3),
-           "tokens": tokens, "input_tokens": input_tokens, "cached_tokens": cached,
+           **{k: sum(s[k] for s in steps) for k in ("tokens", "input_tokens", "cached_tokens")},
            "tool_calls": sum(len(s["tool_calls"]) for s in steps), "compactions": compactions, "ctx_edits": edits,
            "searched": bool(broke), "violation": broke, "seconds": sum(s["seconds"] for s in steps),
            "errors": [s["error"] for s in steps if s["error"]], "session": session, "repo": repo, "answer": answer[-600:]}
@@ -278,9 +262,6 @@ def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=N
 
 def report(out):
     rows = read_jsonl(os.path.join(out, "results.jsonl"))
-    for r in rows:
-        r["tokens"], r["input_tokens"], r["cached_tokens"] = session_usage(r["session"])
-        rescore(r)
     lines = ["| arm | family | success | mean score | mean tokens | mean uncached input | summaries | ctx edits | searched |",
              "|---|---|---|---|---|---|---|---|---|"]
     for family in FAMILIES + ["all"]:

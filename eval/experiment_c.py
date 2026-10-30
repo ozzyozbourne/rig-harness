@@ -29,10 +29,9 @@ import os
 import re
 import shutil
 import sys
-import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from experiment_b import BUDGET, answer_map, make, one, rescore  # noqa: E402
+from experiment_b import BUDGET, answer_map, make, one  # noqa: E402
 from run import fresh, lessons, log as log_row, read_jsonl, rig  # noqa: E402
 
 LEARN = ["needles", "kv", "rules"]
@@ -42,7 +41,6 @@ TOKEN_SLACK = 1.25
 REFERENCE = {"needles": 258_000, "kv": 326_000, "rules": 201_000}
 REFINE = ("/refine how you manage your context file under the token budget: what to keep word for word, "
           "what to drop, when and how to edit it cheaply, and keeping to the task's instructions")
-SLOTS = threading.Semaphore(8)  # rig processes at once
 GATE_SEED = 200
 
 
@@ -58,17 +56,12 @@ def clean(row):
     return row["success"] and not row["searched"]
 
 
-def run_limited(out, arm, family, seed, state, tag, log, mode="clm"):
-    with SLOTS:
-        return one(out, arm, family, seed, state=state, tag=tag, log=log, mode=mode)
-
-
 def run_copy(out, arm, family, seed, state, tag, log, mode="clm"):
     """A run with a copy of `state`, so the run cannot change it."""
     dst = os.path.join(out, "states", "copies", f"{tag}-{family}-{seed}.json")
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy(state, dst)
-    return run_limited(out, arm, family, seed, dst, tag, log, mode)
+    return one(out, arm, family, seed, state=dst, tag=tag, log=log, mode=mode)
 
 
 def review(family, seed, row):
@@ -98,13 +91,11 @@ def review(family, seed, row):
 
 def episode(out, tag, family, seed, state):
     """A learning episode on `state`: the task, a review, then /refine."""
-    row = run_limited(out, tag, family, seed, state, tag, "learn.jsonl")
+    row = one(out, tag, family, seed, state=state, tag=tag, log="learn.jsonl", mode="clm")
     if row["session"]:
         env = {"CTX_MODE": "clm", "CTX_BUDGET": BUDGET}
-        with SLOTS:
-            rig(row["repo"], review(family, seed, row), state, row["session"], timeout=600, env=env)
-        with SLOTS:
-            rig(row["repo"], REFINE, state, row["session"], timeout=600, env=env)
+        rig(row["repo"], review(family, seed, row), state, row["session"], timeout=600, env=env)
+        rig(row["repo"], REFINE, state, row["session"], timeout=600, env=env)
     return row
 
 
@@ -164,7 +155,7 @@ def tests(out, pool, arm, rep, state, mode="clm"):
 
 
 def report(out):
-    rows = [rescore(r) for r in read_jsonl(os.path.join(out, "results.jsonl"))]
+    rows = read_jsonl(os.path.join(out, "results.jsonl"))
     arms = ["summary", "clm", "clm_ungated", "clm_gated"]
     lines = ["| arm | family | clean | correct | broke read-only | mean tokens | ctx edits | tool calls |",
              "|---|---|---|---|---|---|---|---|"]

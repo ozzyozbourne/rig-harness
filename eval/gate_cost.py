@@ -24,7 +24,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import experiment_a as ea  # noqa: E402
 from gate_test import CANDIDATES, FAMS, for_each_base  # noqa: E402
-from run import log, read_jsonl  # noqa: E402
+from run import log, parallel, read_jsonl  # noqa: E402
 
 SLACK = 1
 TOTAL_SLACK = 2
@@ -58,11 +58,15 @@ def judge(base_runs, cand_runs):
 
 
 def one_base(out, b, base):
-    base_runs = [suite(out, f"b{b}-base-{i}", base) for i in (0, 1)]
-    for name in TESTED:
-        cand = os.path.join(out, "states", f"b{b}-{name}.json")
+    cands = {name: os.path.join(out, "states", f"b{b}-{name}.json") for name in TESTED}
+    for name, cand in cands.items():
         ea.add_lesson(base, cand, CANDIDATES[name][1])
-        cand_runs = [suite(out, f"b{b}-{name}-{i}", cand) for i in (0, 1)]
+    # The base's two runs and each candidate's two, all at once.
+    runs = [(None, base)] * 2 + [(name, cands[name]) for name in TESTED for _ in (0, 1)]
+    done = parallel([lambda i=i, n=n, s=s: suite(out, f"b{b}-{n or 'base'}-{i % 2}", s) for i, (n, s) in enumerate(runs)])
+    base_runs = done[:2]
+    for k, name in enumerate(TESTED):
+        cand_runs = done[2 + 2 * k: 4 + 2 * k]
         v = judge(base_runs, cand_runs)
         row = {"base": b, "candidate": name, "harmful": CANDIDATES[name][0],
                "base_runs": base_runs, "cand_runs": cand_runs, **v}
