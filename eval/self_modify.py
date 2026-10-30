@@ -17,14 +17,15 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from run import rig  # noqa: E402
+from run import fresh, lessons, log, rig, write_files  # noqa: E402
 
 HOME = os.environ["RIG_HOME"]
 DATA = "alpha\nbeta TODO: fix me\ngamma\n# TODO second\n"
 
 
 def sha(path):
-    return hashlib.sha256(open(path, "rb").read()).hexdigest()
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 
 TASKS = {
@@ -98,19 +99,18 @@ def main():
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     toml = os.path.join(HOME, "plugins.toml")
-    pristine = open(toml).read()
+    with open(toml) as f:
+        pristine = f.read()
     for name in a.tasks.split(","):
         t = TASKS[name]
-        open(toml, "w").write(pristine)
+        write_files(HOME, {"plugins.toml": pristine})
         for d in os.listdir(os.path.join(HOME, "plugins")):
             if d not in ("continual", "utc_clock"):
                 shutil.rmtree(os.path.join(HOME, "plugins", d))
         repo = os.path.join(a.out, name)
         shutil.rmtree(repo, ignore_errors=True)
-        os.makedirs(repo)
-        open(os.path.join(repo, "data.txt"), "w").write(DATA)
-        state = os.path.join(repo, "state.json")
-        json.dump({"version": 0, "next_id": 0, "lessons": [], "history": []}, open(state, "w"))
+        write_files(repo, {"data.txt": DATA})
+        state = fresh(os.path.join(repo, "state.json"))
         if t.get("broken"):
             plant_broken()
         build = rig(repo, t["ask"].replace("$RIG_HOME", HOME), state, timeout=1500)
@@ -119,15 +119,13 @@ def main():
         got = use["answer"].strip().strip("`").strip()
         want = t["expect"](repo)
         reloads = sum(1 for c in build["tool_calls"] if c["name"] == "harness_reload")
-        lessons = json.load(open(state))["lessons"]
-        r = {"task": name, "build_code": build["code"], "reload_calls": reloads, "lesson_recorded": bool(lessons),
+        r = {"task": name, "build_code": build["code"], "reload_calls": reloads, "lesson_recorded": bool(lessons(state)),
              "tool_called_in_new_session": called, "output_correct": called and got == want,
              "build_tool_calls": len(build["tool_calls"]), "build_seconds": build["seconds"],
              "cost": round(build["cost"] + use["cost"], 4), "got": got[:200], "want": want}
-        with open(os.path.join(a.out, "results.jsonl"), "a") as f:
-            f.write(json.dumps(r) + "\n")
+        log(a.out, "results.jsonl", r)
         print(json.dumps(r), flush=True)
-    open(toml, "w").write(pristine)
+    write_files(HOME, {"plugins.toml": pristine})
 
 
 if __name__ == "__main__":

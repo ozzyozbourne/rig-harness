@@ -26,13 +26,14 @@ import argparse
 import concurrent.futures as cf
 import json
 import os
+import re
 import shutil
 import sys
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from experiment_b import BUDGET, json_object, make, one, rescore  # noqa: E402
-from run import EMPTY, rig  # noqa: E402
+from experiment_b import BUDGET, answer_map, make, one, rescore  # noqa: E402
+from run import fresh, lessons, log as log_row, read_jsonl, rig  # noqa: E402
 
 LEARN = ["needles", "kv", "rules"]
 TEST = LEARN + ["ledger"]
@@ -42,13 +43,11 @@ REFERENCE = {"needles": 258_000, "kv": 326_000, "rules": 201_000}
 REFINE = ("/refine how you manage your context file under the token budget: what to keep word for word, "
           "what to drop, when and how to edit it cheaply, and keeping to the task's instructions")
 SLOTS = threading.Semaphore(8)  # rig processes at once
+GATE_SEED = 200
 
 
 def learn_seeds(rep):
     return [(f, 100 + 10 * rep + k) for k in range(2) for f in LEARN]
-
-
-GATE_SEED = 200
 
 
 def test_seeds(rep):
@@ -59,18 +58,7 @@ def clean(row):
     return row["success"] and not row["searched"]
 
 
-def lessons(path):
-    with open(path) as f:
-        return json.load(f)["lessons"]
-
-
-def fresh(path):
-    with open(path, "w") as f:
-        json.dump(EMPTY, f)
-    return path
-
-
-def run(out, arm, family, seed, state, tag, log, mode="clm"):
+def run_limited(out, arm, family, seed, state, tag, log, mode="clm"):
     with SLOTS:
         return one(out, arm, family, seed, state=state, tag=tag, log=log, mode=mode)
 
@@ -80,7 +68,7 @@ def run_copy(out, arm, family, seed, state, tag, log, mode="clm"):
     dst = os.path.join(out, "states", "copies", f"{tag}-{family}-{seed}.json")
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy(state, dst)
-    return run(out, arm, family, seed, dst, tag, log, mode)
+    return run_limited(out, arm, family, seed, dst, tag, log, mode)
 
 
 def review(family, seed, row):
@@ -94,7 +82,7 @@ def review(family, seed, row):
         lines.append("Answer: the report does not follow the report rules given at the start exactly "
                      f"(rule check passed for {row['score']:.0%} of incident lines).")
     else:
-        got = {str(k): str(v) for k, v in json_object(row["answer"]).items()}
+        got = answer_map(row["answer"])
         wrong = [k for k in expected if got.get(k) != expected[k]]
         extra = [k for k in got if k not in expected]
         lines.append("Answer: wrong. Missing or wrong: " + (", ".join(wrong) or "none")
@@ -110,7 +98,7 @@ def review(family, seed, row):
 
 def episode(out, tag, family, seed, state):
     """A learning episode on `state`: the task, a review, then /refine."""
-    row = run(out, tag, family, seed, state, tag, "learn.jsonl")
+    row = run_limited(out, tag, family, seed, state, tag, "learn.jsonl")
     if row["session"]:
         env = {"CTX_MODE": "clm", "CTX_BUDGET": BUDGET}
         with SLOTS:
@@ -163,8 +151,7 @@ def chain(out, arm, rep):
                     shutil.copy(cand, state)
                     before = cs
         entry.update(clean=clean(row), tokens=row["tokens"], lessons=len(lessons(state)))
-        with open(os.path.join(out, "chains.jsonl"), "a") as f:
-            f.write(json.dumps(entry) + "\n")
+        log_row(out, "chains.jsonl", entry)
         print(f"[{arm} r{rep}] {fam}/{seed}: clean={entry['clean']} lessons={entry['lessons']}"
               + (f" accepted={entry.get('accepted')} ratio={entry.get('token_ratio')}" if arm == "gated" else ""),
               flush=True)
@@ -177,14 +164,14 @@ def tests(out, pool, arm, rep, state, mode="clm"):
 
 
 def report(out):
-    rows = [rescore(json.loads(l)) for l in open(os.path.join(out, "results.jsonl"))]
+    rows = [rescore(r) for r in read_jsonl(os.path.join(out, "results.jsonl"))]
     arms = ["summary", "clm", "clm_ungated", "clm_gated"]
     lines = ["| arm | family | clean | correct | broke read-only | mean tokens | ctx edits | tool calls |",
              "|---|---|---|---|---|---|---|---|"]
     for family in TEST + ["learned (3)", "all"]:
         for arm in arms:
-            rs = [r for r in rows if r["arm"] == arm and (family == "all" or r["family"] == family
-                                                         or (family == "learned (3)" and r["family"] in LEARN))]
+            members = {"all": TEST, "learned (3)": LEARN}.get(family, [family])
+            rs = [r for r in rows if r["arm"] == arm and r["family"] in members]
             if not rs:
                 continue
             n = len(rs)
@@ -193,14 +180,13 @@ def report(out):
                          f"{sum(r['ctx_edits'] for r in rs) / n:.1f} | {sum(r['tool_calls'] for r in rs) / n:.1f} |")
     path = os.path.join(out, "chains.jsonl")
     if os.path.exists(path):
-        ch = [json.loads(l) for l in open(path)]
+        ch = read_jsonl(path)
         g = [c for c in ch if c["arm"] == "gated" and c.get("changed")]
         lines += ["", f"Gate: {sum(c['accepted'] for c in g)}/{len(g)} changed states accepted; "
                   f"rejections for lost clean runs: {sum(bool(c['lost']) for c in g)}, "
                   f"for tokens over {TOKEN_SLACK}x: {sum(c['token_ratio'] > TOKEN_SLACK for c in g)}."]
     for arm in ("ungated", "gated"):
-        for st in sorted(f for f in os.listdir(os.path.join(out, "states")) if f.startswith(f"{arm}-r")
-                         and f.endswith(".json") and "cand" not in f and f.count("-") == 1):
+        for st in sorted(f for f in os.listdir(os.path.join(out, "states")) if re.fullmatch(rf"{arm}-r\d+\.json", f)):
             lines += ["", f"Lessons in {st}:"] + [f"- [{x['kind']}] {x['text']}"
                                                    for x in lessons(os.path.join(out, "states", st))]
     text = "\n".join(lines)
@@ -237,10 +223,13 @@ def main():
     os.makedirs(os.path.join(a.out, "states"), exist_ok=True)
     empty = fresh(os.path.join(a.out, "states", "empty.json"))
     with cf.ThreadPoolExecutor(2 * a.repeats) as chains, cf.ThreadPoolExecutor(8) as runs:
-        learned = {(arm, r): chains.submit(chain, a.out, arm, r) for r in range(a.repeats) for arm in ("ungated", "gated")}
-        jobs = [j for r in range(a.repeats) for j in tests(a.out, runs, "summary", r, empty, "summary")
-                + tests(a.out, runs, "clm", r, empty)]
-        for (arm, r), c in learned.items():
+        learned = {chains.submit(chain, a.out, arm, r): (arm, r) for r in range(a.repeats) for arm in ("ungated", "gated")}
+        jobs = []
+        for r in range(a.repeats):
+            jobs += tests(a.out, runs, "summary", r, empty, "summary")
+            jobs += tests(a.out, runs, "clm", r, empty)
+        for c in cf.as_completed(learned):
+            arm, r = learned[c]
             jobs += tests(a.out, runs, f"clm_{arm}", r, c.result())
         for j in cf.as_completed(jobs):
             j.result()

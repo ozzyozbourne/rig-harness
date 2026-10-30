@@ -15,14 +15,13 @@ import argparse
 import collections
 import concurrent.futures as cf
 import glob
-import json
 import os
 import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import experiment_a as ea  # noqa: E402
-from run import test_run  # noqa: E402
+from run import log, read_jsonl, test_run  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FAMS = list(ea.CI)
@@ -59,10 +58,10 @@ def one_base(out, b, base):
         tag = f"b{b}-{name}"
         cs = ea.suite(out, tag, cand, FAMS)
         strict, lost = ea.strict_admit(out, tag, cand, cs, ref)
-        tolerant = sum(cs.values()) >= sum(ref.values()) - ea.TOLERANCE
+        tolerant = ea.admit(cs, ref)
         row = {"base": b, "candidate": name, "harmful": harmful, "suite": cs, "base_suite": ref,
                "tolerant_accept": tolerant, "strict_accept": strict, "confirmed_lost": lost}
-        ea.log(out, "gate.jsonl", row)
+        log(out, "gate.jsonl", row)
         print(f"[b{b}] {name}: tolerant={tolerant} strict={strict} lost={lost}", flush=True)
         for fam in fams:
             test_run(out, f"poison-{name}", b, fam, cand)
@@ -71,7 +70,7 @@ def one_base(out, b, base):
 
 
 def report(out):
-    rows = [json.loads(l) for l in open(os.path.join(out, "gate.jsonl"))]
+    rows = read_jsonl(os.path.join(out, "gate.jsonl"))
     print("| Lesson | Harmful | Tolerant gate accepted | Strict gate accepted | Losses confirmed by rerun |")
     print("|---|---|---|---|---|")
     for name, (harmful, _, _) in CANDIDATES.items():
@@ -80,8 +79,8 @@ def report(out):
         print(f"| {name} | {'yes' if harmful else 'no'} | {sum(r['tolerant_accept'] for r in rs)}/{len(rs)} | "
               f"{sum(r['strict_accept'] for r in rs)}/{len(rs)} | {dict(lost) or '-'} |")
     print()
-    res = [json.loads(l) for l in open(os.path.join(out, "results.jsonl"))]
-    base = [json.loads(l) for l in open(os.path.join(HERE, "results/experiment_a/results.jsonl"))]
+    res = read_jsonl(os.path.join(out, "results.jsonl"))
+    base = read_jsonl(os.path.join(HERE, "results/experiment_a/results.jsonl"))
     for name, (harmful, _, fams) in CANDIDATES.items():
         if not harmful:
             continue
@@ -96,6 +95,22 @@ def report(out):
         print(f"{name} on {', '.join(fams)}: without it {f(without)}; with it {f(with_p)}")
 
 
+def for_each_base(out, one_base):
+    """Runs `one_base(out, b, base)` side by side for a copy of each final state of
+    Experiment A's ungated arm."""
+    os.makedirs(os.path.join(out, "states"), exist_ok=True)
+    bases = sorted(glob.glob(os.path.join(HERE, "results/experiment_a/states/ungated-r*.json")))
+    with cf.ThreadPoolExecutor(len(bases)) as pool:
+        jobs = []
+        for b, src in enumerate(bases):
+            base = os.path.join(out, "states", f"b{b}-base.json")
+            shutil.copy(src, base)
+            jobs.append(pool.submit(one_base, out, b, base))
+        for j in jobs:
+            j.result()
+    print("DONE", flush=True)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--out", default="/tmp/gate")
@@ -104,17 +119,7 @@ def main():
     if a.report:
         report(a.report)
         return
-    os.makedirs(os.path.join(a.out, "states"), exist_ok=True)
-    bases = sorted(glob.glob(os.path.join(HERE, "results/experiment_a/states/ungated-r*.json")))
-    with cf.ThreadPoolExecutor(len(bases)) as pool:
-        jobs = []
-        for b, src in enumerate(bases):
-            base = os.path.join(a.out, "states", f"b{b}-base.json")
-            shutil.copy(src, base)
-            jobs.append(pool.submit(one_base, a.out, b, base))
-        for j in jobs:
-            j.result()
-    print("DONE", flush=True)
+    for_each_base(a.out, one_base)
 
 
 if __name__ == "__main__":

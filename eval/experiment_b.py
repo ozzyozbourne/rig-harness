@@ -32,7 +32,7 @@ import string
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from run import EMPTY, make_repo, rig  # noqa: E402
+from run import fresh, make_repo, read_jsonl, rig, log as log_row  # noqa: E402
 
 ARMS = ["summary", "keep_last", "clm"]
 FAMILIES = ["needles", "kv", "rules"]
@@ -91,8 +91,10 @@ def make(family, seed):
                     del store[k]
                     ops.append(f"delete {k}")
                 else:
-                    k = rng.choice(sorted(store)) if rng.random() < 0.5 else f"k{n}"
-                    n += k == f"k{n}"
+                    if rng.random() < 0.5:
+                        k = rng.choice(sorted(store))
+                    else:
+                        k, n = f"k{n}", n + 1
                     store[k] = code(rng)
                     ops.append(f"set {k}={store[k]}")
             turns.append(f"Store update: {'; '.join(ops)}. Then cat chunk_{t}.txt and tell me its last line "
@@ -138,47 +140,57 @@ def json_object(answer):
         return {}
 
 
+def answer_map(answer):
+    """The answer's JSON object, keys and values as strings."""
+    return {str(k): str(v) for k, v in json_object(answer).items()}
+
+
+def report_lines(expected):
+    """The `rules` report that follows every rule, as lines."""
+    order = sorted(expected.items(), key=lambda kv: -kv[1])
+    return ["REPORT v7"] + [f"{k.upper()} | {s}" for k, s in order] + [f"TOTAL {sum(expected.values())}",
+                                                                     "-- end of report --"]
+
+
 def grade(family, answer, expected):
     """(score in [0, 1], success)."""
     if family in ("needles", "kv", "ledger"):
-        got = {str(k): str(v) for k, v in json_object(answer).items()}
+        got = answer_map(answer)
         keys = set(expected) | set(got)
         right = sum(1 for k in keys if got.get(k) == expected.get(k))
         return right / len(keys), got == expected
     lines = [l.strip() for l in answer.strip().splitlines() if l.strip()]
-    order = sorted(expected.items(), key=lambda kv: -kv[1])
-    want = ["REPORT v7"] + [f"{k.upper()} | {s}" for k, s in order] + [f"TOTAL {sum(expected.values())}",
-                                                                     "-- end of report --"]
     facts = sum(1 for k, s in expected.items() if f"{k.upper()} | {s}" in lines) / len(expected)
-    return facts, lines == want
+    return facts, lines == report_lines(expected)
+
+
+def session_log_lines(session):
+    """Every line of every agent log of a rig session."""
+    home = os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
+    for path in glob.glob(os.path.join(home, "sessions", session or "-", "logs", "*.jsonl")):
+        with open(path) as f:
+            yield from f
 
 
 def session_counts(session):
     """(summary compactions, ctx_mode edits) in a session's logs."""
-    home = os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
     compactions = edits = 0
-    for path in glob.glob(os.path.join(home, "sessions", session or "-", "logs", "*.jsonl")):
-        with open(path) as f:
-            for line in f:
-                if '"kind":"rig.compaction"' in line:
-                    compactions += 1
-                elif '"by":{"kind":{"plugin":"ctx_mode"}}' in line and '"type":"aside"' not in line:
-                    edits += 1
+    for line in session_log_lines(session):
+        if '"kind":"rig.compaction"' in line:
+            compactions += 1
+        elif '"by":{"kind":{"plugin":"ctx_mode"}}' in line and '"type":"aside"' not in line:
+            edits += 1
     return compactions, edits
 
 
 def session_usage(session):
     """(total, input, cached) tokens of a session's main agent, from its last
     saved usage; a resumed run's exit event repeats the running total."""
-    home = os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
     best = (0, 0, 0)
-    for path in glob.glob(os.path.join(home, "sessions", session or "-", "logs", "*.jsonl")):
-        with open(path) as f:
-            for line in f:
-                if '"key":"rig_basics::telemetry::usage::AgentUsage"' in line:
-                    t = json.loads(line)["value"]["total"]["tokens"]
-                    best = max(best, (t.get("total_tokens", 0), t.get("input_tokens", 0),
-                                      t.get("cached_input_tokens", 0)))
+    for line in session_log_lines(session):
+        if '"key":"rig_basics::telemetry::usage::AgentUsage"' in line:
+            t = json.loads(line)["value"]["total"]["tokens"]
+            best = max(best, (t.get("total_tokens", 0), t.get("input_tokens", 0), t.get("cached_input_tokens", 0)))
     return best
 
 
@@ -203,13 +215,8 @@ def violation(commands, names):
     return None
 
 
-def shell_commands(calls):
-    return [c["args"].get("command", "") for c in calls if c["name"] == "shell" and isinstance(c["args"], dict)]
-
-
 def session_commands(session):
     """Every shell command a session's agents ran, from its logs."""
-    home = os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
     out = []
 
     def walk(x):
@@ -222,11 +229,9 @@ def session_commands(session):
             for v in x:
                 walk(v)
 
-    for path in glob.glob(os.path.join(home, "sessions", session or "-", "logs", "*.jsonl")):
-        with open(path) as f:
-            for line in f:
-                if '"shell"' in line:
-                    walk(json.loads(line))
+    for line in session_log_lines(session):
+        if '"shell"' in line:
+            walk(json.loads(line))
     return out
 
 
@@ -245,9 +250,7 @@ def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=N
     repo = os.path.join(out, "runs", tag or arm, family, f"r{rep}")
     make_repo(repo, files)
     if state is None:
-        state = repo + ".state.json"
-        with open(state, "w") as f:
-            json.dump(EMPTY, f)
+        state = fresh(repo + ".state.json")
     env = {"CTX_MODE": mode or arm, "CTX_BUDGET": BUDGET}
     steps, session = [], None
     for turn in turns:
@@ -260,22 +263,21 @@ def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=N
     score, ok = grade(family, answer, expected)
     compactions, edits = session_counts(session)
     tokens, input_tokens, cached = session_usage(session)
-    broke = violation([c for s in steps for c in shell_commands(s["tool_calls"])], list(files))
+    broke = violation(session_commands(session), list(files))
     row = {"arm": arm, "family": family, "rep": rep, "success": ok, "score": round(score, 3),
            "tokens": tokens, "input_tokens": input_tokens, "cached_tokens": cached,
            "tool_calls": sum(len(s["tool_calls"]) for s in steps), "compactions": compactions, "ctx_edits": edits,
            "searched": bool(broke), "violation": broke, "seconds": sum(s["seconds"] for s in steps),
            "errors": [s["error"] for s in steps if s["error"]], "session": session, "repo": repo, "answer": answer[-600:]}
     if log:
-        with open(os.path.join(out, log), "a") as f:
-            f.write(json.dumps(row) + "\n")
+        log_row(out, log, row)
     print(f"[{arm}] {family} r{rep}: ok={ok} score={row['score']} tokens={row['tokens']} "
           f"compactions={compactions} edits={edits}", flush=True)
     return row
 
 
 def report(out):
-    rows = [json.loads(l) for l in open(os.path.join(out, "results.jsonl"))]
+    rows = read_jsonl(os.path.join(out, "results.jsonl"))
     for r in rows:
         r["tokens"], r["input_tokens"], r["cached_tokens"] = session_usage(r["session"])
         rescore(r)
@@ -304,11 +306,10 @@ def selftest():
         assert make(family, 0) == (files, turns, expected), "not deterministic"
         chars = sum(len(t) for t in files.values())
         if family == "rules":
-            order = sorted(expected.items(), key=lambda kv: -kv[1])
-            good = "\n".join(["REPORT v7"] + [f"{k.upper()} | {s}" for k, s in order]
-                             + [f"TOTAL {sum(expected.values())}", "-- end of report --"])
+            good = "\n".join(report_lines(expected))
             bad = good.replace("REPORT v7\n", "")
-            lowered = good.replace(order[0][0].upper(), order[0][0])
+            top = max(expected, key=expected.get)
+            lowered = good.replace(top.upper(), top)
         else:
             good = "```json\n" + json.dumps(expected) + "\n```"
             wrong = dict(expected)

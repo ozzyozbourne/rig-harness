@@ -153,7 +153,9 @@ struct Harness {
 }
 
 impl Harness {
-    fn save(&self, data: &PluginData) -> Result<(), String> {
+    /// Writes the state to `CONTINUAL_STATE`, or else to the user's plugin data.
+    fn save(&self, data: Option<&PluginData>) -> Result<(), String> {
+        let data = data.ok_or("plugin data is not ready yet")?;
         let bytes = serde_json::to_vec_pretty(&self.state).map_err(|e| e.to_string())?;
         match std::env::var_os(STATE_ENV) {
             Some(path) => std::fs::write(path, bytes).map_err(|e| e.to_string()),
@@ -276,15 +278,18 @@ fn on_state(
     data: Option<Res<PluginData>>,
     mut calls: Query<&mut Decision, ToolCalls>,
 ) {
-    let result = apply(&mut harness, &called.args);
-    let result = result.and_then(|(text, changed)| {
+    let result = apply(&mut harness, &called.args).and_then(|(text, changed)| {
         if changed {
-            let data = data.ok_or("plugin data is not ready yet")?;
-            harness.save(&data)?;
+            harness.save(data.as_deref())?;
         }
         Ok(text)
     });
-    if let Ok(mut decision) = calls.get_mut(called.call) {
+    answer(&mut calls, called.call, result);
+}
+
+/// Answers tool call `call` with `result`'s text, or refuses it with its error.
+fn answer(calls: &mut Query<&mut Decision, ToolCalls>, call: Entity, result: Result<String, String>) {
+    if let Ok(mut decision) = calls.get_mut(call) {
         let outcome = match result {
             Ok(text) => ToolResult::success(text.into()),
             Err(why) => ToolResult::failed(ToolExecutionError::refused(why)),
@@ -293,15 +298,15 @@ fn on_state(
     }
 }
 
+/// `value` when it is there and not blank, else the error `missing`.
+fn required(value: &Option<String>, missing: &str) -> Result<String, String> {
+    value.clone().filter(|v| !v.trim().is_empty()).ok_or_else(|| missing.to_owned())
+}
+
 /// Applies a `harness_state` call; the text answers it, the flag says whether the state changed.
 fn apply(harness: &mut Harness, args: &StateArgs) -> Result<(String, bool), String> {
     let state = &mut harness.state;
-    let evidence = || {
-        args.evidence
-            .clone()
-            .filter(|e| !e.trim().is_empty())
-            .ok_or_else(|| "A change needs `evidence`: what in this session showed it is needed.".to_owned())
-    };
+    let evidence = || required(&args.evidence, "A change needs `evidence`: what in this session showed it is needed.");
     let position = |state: &State| {
         let id = args.id.ok_or("This action needs `id`.")?;
         state.lessons.iter().position(|l| l.id == id).ok_or(format!("No lesson #{id}."))
@@ -311,7 +316,7 @@ fn apply(harness: &mut Harness, args: &StateArgs) -> Result<(String, bool), Stri
         Action::History => Ok((state.history_listing(), false)),
         Action::Add => {
             let kind = args.kind.ok_or("`add` needs `kind`.")?;
-            let text = args.text.clone().filter(|t| !t.trim().is_empty()).ok_or("`add` needs `text`.")?;
+            let text = required(&args.text, "`add` needs `text`.")?;
             let evidence = evidence()?;
             let id = state.next_id;
             state.commit(&format!("add #{id}"), |s| {
@@ -322,7 +327,7 @@ fn apply(harness: &mut Harness, args: &StateArgs) -> Result<(String, bool), Stri
         }
         Action::Update => {
             let at = position(state)?;
-            let text = args.text.clone().filter(|t| !t.trim().is_empty()).ok_or("`update` needs `text`.")?;
+            let text = required(&args.text, "`update` needs `text`.")?;
             let evidence = evidence()?;
             let id = state.lessons[at].id;
             state.commit(&format!("update #{id}"), |s| {
@@ -365,19 +370,13 @@ fn on_reload(
         Some(mut reload) => reload.ask(called.agent).map_err(str::to_owned),
         None => Err("The ReloadPlugin is not loaded, so this agent cannot rebuild itself.".to_owned()),
     };
-    if let Ok(mut decision) = calls.get_mut(called.call) {
-        let outcome = match result {
-            Ok(()) => ToolResult::success(
-                format!(
-                    "Reload queued ({}): the build starts once this turn ends, and the agent restarts on it in this session.",
-                    called.args.reason
-                )
-                .into(),
-            ),
-            Err(why) => ToolResult::failed(ToolExecutionError::refused(why)),
-        };
-        decision.decide(Decider::plugin(NAME), outcome);
-    }
+    let result = result.map(|()| {
+        format!(
+            "Reload queued ({}): the build starts once this turn ends, and the agent restarts on it in this session.",
+            called.args.reason
+        )
+    });
+    answer(&mut calls, called.call, result);
 }
 
 const REFINE: &str = "Review this session's work so far. Find at most three concrete lessons that would have made it \
@@ -408,16 +407,16 @@ fn show(
     let notice = match words.as_slice() {
         [] => Notice::info(args.agent, harness.state.listing()),
         ["history"] => Notice::info(args.agent, harness.state.history_listing()),
-        ["rollback", version] => match version.parse::<u32>() {
-            Ok(version) => match harness.state.rollback(version).and_then(|()| {
-                let data = data.ok_or("plugin data is not ready yet")?;
-                harness.save(&data)
-            }) {
-                Ok(()) => Notice::info(args.agent, format!("Rolled back to version {version}.")),
+        ["rollback", version] => {
+            let rolled = version
+                .parse::<u32>()
+                .map_err(|_| "/harness rollback needs a version number".to_owned())
+                .and_then(|v| harness.state.rollback(v).and_then(|()| harness.save(data.as_deref())).map(|()| v));
+            match rolled {
+                Ok(v) => Notice::info(args.agent, format!("Rolled back to version {v}.")),
                 Err(why) => Notice::error(args.agent, why),
-            },
-            Err(_) => Notice::error(args.agent, "/harness rollback needs a version number"),
-        },
+            }
+        }
         _ => Notice::error(args.agent, "Usage: /harness, /harness history, /harness rollback <version>"),
     };
     notices.write(notice);

@@ -1,8 +1,10 @@
 """Each checker must fail the untouched test repo and pass a reference solution."""
-import os, shutil, subprocess, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tasks import FAMILIES, SPDX
-from run import make_repo
+from run import make_repo, write_files
 
 REF = {
     "changelog": {"mathx/stats.py": "def mean(xs):\n    return sum(xs) / len(xs) if xs else 0.0\n",
@@ -22,9 +24,7 @@ for fam, spec in FAMILIES.items():
     repo = f"/tmp/selftest/{fam}"
     make_repo(repo, spec["test_files"])
     before = spec["check"](repo, "Done.")
-    for name, text in REF[fam].items():
-        with open(os.path.join(repo, name), "w") as f:
-            f.write(text)
+    write_files(repo, REF[fam])
     after = spec["check"](repo, ANSWER.get(fam, "Done."))
     good = before[0] is False and after[0] is True and after[1] in (True, None) and before[1] in (False, None)
     bad += not good

@@ -41,6 +41,34 @@ def read(repo, path):
         return ""
 
 
+def tests_text(repo):
+    """The text of every .py file in the repo's tests/ directory."""
+    tests = os.path.join(repo, "tests")
+    if not os.path.isdir(tests):
+        return ""
+    return "".join(read(repo, os.path.join("tests", n)) for n in os.listdir(tests) if n.endswith(".py"))
+
+
+def has_hints(repo, path, fn):
+    """Whether function `fn` in `path` annotates every argument and its return, and has a docstring."""
+    try:
+        tree = ast.parse(read(repo, path))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == fn:
+            args = node.args.args + node.args.kwonlyargs
+            return all(a.annotation is not None for a in args) and node.returns is not None \
+                and ast.get_docstring(node) is not None
+    return False
+
+
+def ends_with_risk(answer):
+    """Whether the answer's last non-empty line is `Risk: low|medium|high`."""
+    lines = [l.strip().strip("*_` ") for l in (answer or "").splitlines() if l.strip()]
+    return bool(re.fullmatch(r"\**risk\**\s*:\s*\**\s*(low|medium|high)\.?", lines[-1] if lines else "", re.I))
+
+
 # ---------------------------------------------------------------- families
 
 def changelog_check(repo, answer):
@@ -53,8 +81,7 @@ def changelog_check(repo, answer):
 
 def regression_check(repo, answer):
     ok_task, _ = py(repo, "from dates.util import is_leap as f; assert not f(1900) and f(2000) and f(2024) and not f(2023)")
-    tests = "".join(read(repo, os.path.join("tests", n)) for n in os.listdir(os.path.join(repo, "tests")) if n.endswith(".py"))
-    ok_conv = bool(re.search(r"def test_regression_\w*\(", tests)) and unittest_ok(repo)
+    ok_conv = bool(re.search(r"def test_regression_\w*\(", tests_text(repo))) and unittest_ok(repo)
     return ok_task, ok_conv
 
 
@@ -98,10 +125,7 @@ def logging_check(repo, answer):
 
 def risk_check(repo, answer):
     ok_task, _ = py(repo, "from wordcount.count import count_words as c; assert c('a  b') == 2 and c(' x y z ') == 3 and c('') == 0")
-    lines = [l.strip().strip("*_` ") for l in (answer or "").splitlines() if l.strip()]
-    last = lines[-1] if lines else ""
-    ok_conv = bool(re.fullmatch(r"\**risk\**\s*:\s*\**\s*(low|medium|high)\.?", last, re.I))
-    return ok_task, ok_conv
+    return ok_task, ends_with_risk(answer)
 
 
 def appenv_check(repo, answer):
@@ -112,17 +136,7 @@ def appenv_check(repo, answer):
 
 def hints_check(repo, answer):
     ok_task, _ = py(repo, "from lists.ops import chunk; assert chunk([1,2,3,4,5],2)==[[1,2],[3,4],[5]] and chunk([],3)==[]")
-    ok_conv = False
-    try:
-        tree = ast.parse(read(repo, "lists/ops.py"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "chunk":
-                args = node.args.args + node.args.kwonlyargs
-                ok_conv = all(a.annotation is not None for a in args) and node.returns is not None \
-                    and ast.get_docstring(node) is not None
-    except SyntaxError:
-        pass
-    return ok_task, ok_conv
+    return ok_task, has_hints(repo, "lists/ops.py", "chunk")
 
 
 def apperror_check(repo, answer):

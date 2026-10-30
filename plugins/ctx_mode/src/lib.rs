@@ -24,14 +24,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use rig_harness::prelude::*;
-use rig_harness::rig_core::completion::message::{Message as Msg, ToolResultContent, UserContent};
-use rig_harness::rig_memory::estimate_tokens;
+use rig_harness::rig_core::completion::message::{Message as Msg, ToolCall, ToolResultContent, UserContent};
+use rig_harness::rig_memory::{SummaryLimits, estimate_tokens};
 
 const NAME: &str = "ctx_mode";
 /// Tokens before the budget at which a `clm` request carries a reminder.
 const REMIND_BEFORE: u64 = 4096;
-/// The default compaction's reserve (rig-memory's `Limits::default`).
-const RESERVE: u64 = 16_384;
+/// The default compaction's reserve: the room it keeps free below the window.
+const RESERVE: u64 = SummaryLimits::DEFAULT.reserve;
 /// How far past the budget the default compaction acts as a fallback.
 const FALLBACK_MARGIN: u64 = 8_192;
 
@@ -98,13 +98,17 @@ fn shrink_window(mut calls: Query<&mut Adapted, Added<Adapted>>, config: Res<Con
     }
 }
 
-/// Tokens a call for `conversation` sends: its messages, and the request's
-/// system prompt and tools at about four characters a token, as rig's
-/// compaction counts them.
-fn used(conversation: &Conversation, request: &ModelRequest) -> u64 {
+/// Tokens of a request's system prompt and tools, at about four characters a token.
+fn overhead(request: &ModelRequest) -> u64 {
     let prompt = request.prompt.as_ref().map_or(0, |p| p.text().len());
     let tools = serde_json::to_string(&request.request.tools).map_or(0, |t| t.len());
-    estimate_tokens(conversation.messages()) + (prompt + tools) as u64 / 4
+    (prompt + tools) as u64 / 4
+}
+
+/// A rough count of the tokens a call for `conversation` sends: its messages
+/// by rig-memory's estimate, plus the request's [`overhead`].
+fn used(conversation: &Conversation, request: &ModelRequest) -> u64 {
+    estimate_tokens(conversation.messages()) + overhead(request)
 }
 
 /// `keep_last`: when the request reaches the budget, every message but the
@@ -120,9 +124,8 @@ fn keep_last(
         if used(&conversation, &request) < config.budget {
             continue;
         }
-        let overhead = used(&conversation, &request) - estimate_tokens(conversation.messages());
         let messages = conversation.messages();
-        let mut kept = overhead;
+        let mut kept = overhead(&request);
         let mut from = messages.len();
         while from > 1 {
             kept += estimate_tokens(&messages[from - 1..from]);
@@ -207,17 +210,19 @@ fn render(message: &Msg) -> String {
             for c in &a.content {
                 match c {
                     AssistantContent::Text(t) => out.push(t.text().to_owned()),
-                    AssistantContent::ToolCall(call) => out.push(format!(
-                        "<<call {} {}>>",
-                        call.function.name.as_str(),
-                        serde_json::Value::Object(call.function.arguments.clone())
-                    )),
+                    AssistantContent::ToolCall(call) => out.push(call_line(call)),
                     _ => {}
                 }
             }
         }
     }
     out.join("\n")
+}
+
+/// A tool call as the file shows it, on one line.
+fn call_line(call: &ToolCall) -> String {
+    let args = serde_json::Value::Object(call.function.arguments.clone());
+    format!("<<call {} {args}>>", call.function.name.as_str())
 }
 
 /// `message` with its text replaced by `body`: a tool result keeps its call and
@@ -233,29 +238,22 @@ fn rewritten(message: &Msg, body: &str) -> Option<Msg> {
             }
             (!body.trim().is_empty()).then(|| Msg::user(body))
         }
+        Msg::System { .. } => (!body.trim().is_empty()).then(|| Msg::user(body)),
         Msg::Assistant(a) => {
             let mut a = a.clone();
-            let mut text = Vec::new();
             let calls: Vec<AssistantContent> = a
                 .content
                 .iter()
-                .filter(|c| matches!(c, AssistantContent::ToolCall(_)))
-                .filter(|c| body.contains(&render(&Msg::Assistant(AssistantMessage::new(vec![(*c).clone()])))))
+                .filter(|c| matches!(c, AssistantContent::ToolCall(call) if body.contains(&call_line(call))))
                 .cloned()
                 .collect();
-            for line in body.lines() {
-                if !line.starts_with("<<call ") {
-                    text.push(line);
-                }
-            }
-            let text = text.join("\n");
+            let text = body.lines().filter(|l| !l.starts_with("<<call ")).collect::<Vec<_>>().join("\n");
             a.content = calls;
             if !text.trim().is_empty() {
                 a.content.insert(0, AssistantContent::text(text));
             }
             (!a.content.is_empty()).then_some(Msg::Assistant(a))
         }
-        Msg::System { .. } => (!body.trim().is_empty()).then(|| Msg::user(body)),
     }
 }
 
@@ -292,6 +290,36 @@ fn write(conversation: &Conversation, mirror: &mut Mirror) {
     }
 }
 
+/// The conversation the agent's edited file `on_disk` describes: a deleted
+/// block's message is gone, a rewritten one replaces its message, a block
+/// without a known id becomes a note, and messages made since the file was
+/// written stay, in order.
+fn apply_edits(conversation: &mut Conversation, mirror: &Mirror, on_disk: &str) {
+    let index: HashMap<u64, usize> = conversation.entries().map(|e| (e.id.get(), e.index)).collect();
+    let known: HashMap<u64, &String> = mirror.blocks.iter().map(|(id, b)| (id.get(), b)).collect();
+    let mut entries = Vec::new();
+    for (id, body) in parse(on_disk) {
+        let body = body.trim_end();
+        let found = id.and_then(|id| Some((*index.get(&id)?, *known.get(&id)?)));
+        if let Some((at, written)) = found {
+            let Some(mut entry) = conversation.entry(at) else { continue };
+            if written.trim_end() != body {
+                // A message emptied by the edit is dropped: providers reject empty ones.
+                let Some(message) = rewritten(&entry.message, body) else { continue };
+                entry.message = message.into();
+                entry.author = Some(Author::plugin(NAME));
+            }
+            entries.push(entry);
+        } else if !body.trim().is_empty() {
+            entries.push(Entry::new(Msg::user(format!("[note]\n{body}"))).by(Author::plugin(NAME)));
+        }
+    }
+    let new = conversation.entries().filter(|e| !known.contains_key(&e.id.get())).map(|e| e.index).collect::<Vec<_>>();
+    entries.extend(new.into_iter().filter_map(|at| conversation.entry(at)));
+    conversation.set_entries(entries, Author::plugin(NAME));
+    conversation.normalize(Author::plugin(NAME));
+}
+
 /// `clm`: before each turn call, the agent's edits of its file become its
 /// conversation; then the file is written afresh.
 fn sync(
@@ -303,38 +331,7 @@ fn sync(
         let Ok((mut conversation, mut mirror)) = agents.get_mut(agent) else { continue };
         let on_disk = std::fs::read_to_string(&mirror.path).unwrap_or_default();
         if !mirror.written.is_empty() && on_disk != mirror.written {
-            let index: HashMap<u64, usize> = conversation.entries().map(|e| (e.id.get(), e.index)).collect();
-            let known: HashMap<u64, &String> = mirror.blocks.iter().map(|(id, b)| (id.get(), b)).collect();
-            let mut entries = Vec::new();
-            for (id, body) in parse(&on_disk) {
-                let body = body.trim_end().to_owned();
-                match id.and_then(|id| index.get(&id).map(|at| (id, *at))) {
-                    Some((id, at)) if known.contains_key(&id) => {
-                        let Some(mut entry) = conversation.entry(at) else { continue };
-                        if known.get(&id).is_some_and(|b| b.trim_end() != body) {
-                            // A message emptied by the edit is dropped: providers reject empty ones.
-                            let Some(message) = rewritten(&entry.message, &body) else { continue };
-                            entry.message = message.into();
-                            entry.author = Some(Author::plugin(NAME));
-                        }
-                        entries.push(entry);
-                    }
-                    _ if !body.trim().is_empty() => {
-                        entries.push(Entry::new(Msg::user(format!("[note]\n{body}"))).by(Author::plugin(NAME)));
-                    }
-                    _ => {}
-                }
-            }
-            // Messages made since the file was written stay, in order.
-            for entry in conversation.entries() {
-                if !known.contains_key(&entry.id.get()) {
-                    if let Some(e) = conversation.entry(entry.index) {
-                        entries.push(e);
-                    }
-                }
-            }
-            conversation.set_entries(entries, Author::plugin(NAME));
-            conversation.normalize(Author::plugin(NAME));
+            apply_edits(&mut conversation, &mirror, &on_disk);
             request.history = Some(conversation.request_view());
         }
         write(&conversation, &mut mirror);
