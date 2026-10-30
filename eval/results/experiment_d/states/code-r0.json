@@ -1,0 +1,535 @@
+{
+  "version": 13,
+  "next_id": 11,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "skill",
+      "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+      "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+    },
+    {
+      "id": 1,
+      "kind": "memory",
+      "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+      "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+      "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+    },
+    {
+      "id": 3,
+      "kind": "memory",
+      "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+      "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+    },
+    {
+      "id": 4,
+      "kind": "skill",
+      "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+      "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+    },
+    {
+      "id": 5,
+      "kind": "skill",
+      "text": "Verify a trimmed read instead of re-scanning it: when the file's needed lines have known prefixes (e.g. `INCIDENT `, `NEXT FILE:`), pass them as `keep` and read ctx_trim's reply — \"k line(s) kept\" is proof of exactly how many lines matched, so \"2 line(s) kept\" means one sentinel of each kind and no hidden decoy lines, and the 27 KB body never has to be re-read or re-examined.",
+      "evidence": "Chain task this session: every ctx_trim reply reported \"2 line(s) kept\" for files of ~27 KB, which confirmed each file held exactly one INCIDENT and one NEXT FILE line, so I never had to scan a body I had already dropped."
+    },
+    {
+      "id": 6,
+      "kind": "memory",
+      "text": "In generated chain/filler files the two meaningful lines sit at arbitrary positions in the middle of the filler, not at the end: `NEXT FILE: none` can appear with a hundred-plus filler lines after it, so the end of the chain is decided by that line's content, never by reaching the end of the file or the first blank stretch.",
+      "evidence": "Chain task this session: in the last file 2ba2s50u.log the `NEXT FILE: none` line sat around line 0177 with ~120 filler lines after it, and in rsvteo9g.log the NEXT FILE line (line ~0183) came before the INCIDENT line (~0249); stopping at either boundary would have missed data."
+    },
+    {
+      "id": 7,
+      "kind": "skill",
+      "text": "Keep a running store/facts in ONE note block with the `ctx_note` tool: `ctx_note(path=<.clm file>, text=<whole note, e.g. \"STORE k0=.. k1=..\" plus FACT lines>)` replaces every note block with that one, so the update is a single call and duplicate copies can never make an `edit` ambiguous or leave a stale value behind. Do not hand-edit the note line with `edit` (it matches once per copy) and do not add notes via `ctx_trim`'s `note` param repeatedly without a `ctx_note` pass afterwards.",
+      "evidence": "KV-store task this session: my first note was appended by ctx_trim and then echoed in later messages, so `edit` on the store line failed with \"matches 2 places, starting at lines 11, 14\" (twice), and I then rewrote the note with a python script after every cat — 12 context edits for 6 files, plus one 40 KB turn where the trim my edit should have done landed too late. ctx_note (plugins/ctx_note, built and reloaded) does that replace-all-notes update in one tool call; its test replaces 2 note blocks with 1."
+    },
+    {
+      "id": 8,
+      "kind": "skill",
+      "text": "Own-code change: plugin `ctx_trim` (RIG_HOME/plugins/ctx_trim) — its `note` parameter now DROPS every existing note block and writes the given one in their place (report says \"note set: ... N old note block(s) replaced\"), so calling `ctx_trim` with a note after every read can no longer pile up copies; its block walk is the free fn `rewrite(text, keep, max_bytes, note, dry_run)`.",
+      "evidence": "In this session I passed a cumulative note to ctx_trim after each of 8 reads; they stacked into 7 note blocks that one ctx_note call had to replace at the end (\"7 old note block(s) replaced\"). Edited ctx_trim/src/lib.rs, added `is_note_block` + `rewrite`, added the test `a_note_replaces_the_notes_already_there`; `cargo test` in that crate passes 2/2 and `rig plugin check --build` compiles the agent."
+    },
+    {
+      "id": 9,
+      "kind": "prompt",
+      "text": "When using `edit` to replace or delete a whole function, include its signature line (`fn ...(`) in old_text, not just its trailing lines, or the body can be left behind as an unclosed fragment that breaks the build; after such an edit, run a quick `grep -n 'fn '` on the file to confirm no orphan remains.",
+      "evidence": "While adding note replacement to ctx_trim/src/lib.rs, my `edit` old_text started at the tail of the old test helper (`out.join(\"\\n\")` / closing brace), so the file kept a dangling half function ending in `i = j;` right before `#[cfg(test)]` and could not compile; I fixed it by asserting anchor lines with python and deleting lines 187-218, then rebuilt."
+    },
+    {
+      "id": 10,
+      "kind": "memory",
+      "text": "`rig plugin check` takes no plugin name argument (only `--build`); run `RIG_HOME=<home> rig plugin check --build` to compile the agent with all plugins, and `cargo test` inside a plugin crate to run its own tests.",
+      "evidence": "I ran `rig plugin check --build ctx_trim` and got the command's usage text instead of a build; `rig plugin check [--build]` takes no plugin name, and plain `rig plugin check --build` from RIG_HOME then compiled all 30 plugins and the agent."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows as a tool result whose body is empty (`(no tool output)`), not as an error: judge such a call by what the body should contain, and prefer `cat file` output that visibly arrives. In this harness a `cat` of a 27 KB file can also be replaced by only `[exit code 0]`, so re-check content before relying on it.",
+          "evidence": "All ten `cat *.log` calls in this session returned `(no tool output)` with exit code 0 while the files were 27 KB each, and one `cat m3qcz36v.log` later appeared truncated to `[exit code 0]`; I only got the KEY lines by reading the results directly and had to guard against assuming a silent call had failed."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows as a tool result whose body is empty (`(no tool output)`), not as an error: judge such a call by what the body should contain, and prefer `cat file` output that visibly arrives. In this harness a `cat` of a 27 KB file can also be replaced by only `[exit code 0]`, so re-check content before relying on it.",
+          "evidence": "All ten `cat *.log` calls in this session returned `(no tool output)` with exit code 0 while the files were 27 KB each, and one `cat m3qcz36v.log` later appeared truncated to `[exit code 0]`; I only got the KEY lines by reading the results directly and had to guard against assuming a silent call had failed."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows as a tool result whose body is empty (`(no tool output)`), not as an error: judge such a call by what the body should contain, and prefer `cat file` output that visibly arrives. In this harness a `cat` of a 27 KB file can also be replaced by only `[exit code 0]`, so re-check content before relying on it.",
+          "evidence": "All ten `cat *.log` calls in this session returned `(no tool output)` with exit code 0 while the files were 27 KB each, and one `cat m3qcz36v.log` later appeared truncated to `[exit code 0]`; I only got the KEY lines by reading the results directly and had to guard against assuming a silent call had failed."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "update #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output.",
+          "evidence": "KV-store/chunk task this session: each chunk_*.txt is ~28 KB and the answer was one token (the trailing line label, always 0319). Large `cat` bodies were dropped (\"[ctx_trim: 28822 bytes of output dropped]\") so answers had to come from the ctx note; the session cost 403k tokens over 29 tool calls and 16 context edits, largely from catting whole chunks and trimming afterwards."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+          "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+          "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Verify a trimmed read instead of re-scanning it: when the file's needed lines have known prefixes (e.g. `INCIDENT `, `NEXT FILE:`), pass them as `keep` and read ctx_trim's reply — \"k line(s) kept\" is proof of exactly how many lines matched, so \"2 line(s) kept\" means one sentinel of each kind and no hidden decoy lines, and the 27 KB body never has to be re-read or re-examined.",
+          "evidence": "Chain task this session: every ctx_trim reply reported \"2 line(s) kept\" for files of ~27 KB, which confirmed each file held exactly one INCIDENT and one NEXT FILE line, so I never had to scan a body I had already dropped."
+        }
+      ]
+    },
+    {
+      "version": 9,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+          "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Verify a trimmed read instead of re-scanning it: when the file's needed lines have known prefixes (e.g. `INCIDENT `, `NEXT FILE:`), pass them as `keep` and read ctx_trim's reply — \"k line(s) kept\" is proof of exactly how many lines matched, so \"2 line(s) kept\" means one sentinel of each kind and no hidden decoy lines, and the 27 KB body never has to be re-read or re-examined.",
+          "evidence": "Chain task this session: every ctx_trim reply reported \"2 line(s) kept\" for files of ~27 KB, which confirmed each file held exactly one INCIDENT and one NEXT FILE line, so I never had to scan a body I had already dropped."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In generated chain/filler files the two meaningful lines sit at arbitrary positions in the middle of the filler, not at the end: `NEXT FILE: none` can appear with a hundred-plus filler lines after it, so the end of the chain is decided by that line's content, never by reaching the end of the file or the first blank stretch.",
+          "evidence": "Chain task this session: in the last file 2ba2s50u.log the `NEXT FILE: none` line sat around line 0177 with ~120 filler lines after it, and in rsvteo9g.log the NEXT FILE line (line ~0183) came before the INCIDENT line (~0249); stopping at either boundary would have missed data."
+        }
+      ]
+    },
+    {
+      "version": 10,
+      "reason": "add #8",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+          "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Verify a trimmed read instead of re-scanning it: when the file's needed lines have known prefixes (e.g. `INCIDENT `, `NEXT FILE:`), pass them as `keep` and read ctx_trim's reply — \"k line(s) kept\" is proof of exactly how many lines matched, so \"2 line(s) kept\" means one sentinel of each kind and no hidden decoy lines, and the 27 KB body never has to be re-read or re-examined.",
+          "evidence": "Chain task this session: every ctx_trim reply reported \"2 line(s) kept\" for files of ~27 KB, which confirmed each file held exactly one INCIDENT and one NEXT FILE line, so I never had to scan a body I had already dropped."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In generated chain/filler files the two meaningful lines sit at arbitrary positions in the middle of the filler, not at the end: `NEXT FILE: none` can appear with a hundred-plus filler lines after it, so the end of the chain is decided by that line's content, never by reaching the end of the file or the first blank stretch.",
+          "evidence": "Chain task this session: in the last file 2ba2s50u.log the `NEXT FILE: none` line sat around line 0177 with ~120 filler lines after it, and in rsvteo9g.log the NEXT FILE line (line ~0183) came before the INCIDENT line (~0249); stopping at either boundary would have missed data."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Keep a running store/facts in ONE note block with the `ctx_note` tool: `ctx_note(path=<.clm file>, text=<whole note, e.g. \"STORE k0=.. k1=..\" plus FACT lines>)` replaces every note block with that one, so the update is a single call and duplicate copies can never make an `edit` ambiguous or leave a stale value behind. Do not hand-edit the note line with `edit` (it matches once per copy) and do not add notes via `ctx_trim`'s `note` param repeatedly without a `ctx_note` pass afterwards.",
+          "evidence": "KV-store task this session: my first note was appended by ctx_trim and then echoed in later messages, so `edit` on the store line failed with \"matches 2 places, starting at lines 11, 14\" (twice), and I then rewrote the note with a python script after every cat — 12 context edits for 6 files, plus one 40 KB turn where the trim my edit should have done landed too late. ctx_note (plugins/ctx_note, built and reloaded) does that replace-all-notes update in one tool call; its test replaces 2 note blocks with 1."
+        }
+      ]
+    },
+    {
+      "version": 11,
+      "reason": "add #9",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+          "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Verify a trimmed read instead of re-scanning it: when the file's needed lines have known prefixes (e.g. `INCIDENT `, `NEXT FILE:`), pass them as `keep` and read ctx_trim's reply — \"k line(s) kept\" is proof of exactly how many lines matched, so \"2 line(s) kept\" means one sentinel of each kind and no hidden decoy lines, and the 27 KB body never has to be re-read or re-examined.",
+          "evidence": "Chain task this session: every ctx_trim reply reported \"2 line(s) kept\" for files of ~27 KB, which confirmed each file held exactly one INCIDENT and one NEXT FILE line, so I never had to scan a body I had already dropped."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In generated chain/filler files the two meaningful lines sit at arbitrary positions in the middle of the filler, not at the end: `NEXT FILE: none` can appear with a hundred-plus filler lines after it, so the end of the chain is decided by that line's content, never by reaching the end of the file or the first blank stretch.",
+          "evidence": "Chain task this session: in the last file 2ba2s50u.log the `NEXT FILE: none` line sat around line 0177 with ~120 filler lines after it, and in rsvteo9g.log the NEXT FILE line (line ~0183) came before the INCIDENT line (~0249); stopping at either boundary would have missed data."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Keep a running store/facts in ONE note block with the `ctx_note` tool: `ctx_note(path=<.clm file>, text=<whole note, e.g. \"STORE k0=.. k1=..\" plus FACT lines>)` replaces every note block with that one, so the update is a single call and duplicate copies can never make an `edit` ambiguous or leave a stale value behind. Do not hand-edit the note line with `edit` (it matches once per copy) and do not add notes via `ctx_trim`'s `note` param repeatedly without a `ctx_note` pass afterwards.",
+          "evidence": "KV-store task this session: my first note was appended by ctx_trim and then echoed in later messages, so `edit` on the store line failed with \"matches 2 places, starting at lines 11, 14\" (twice), and I then rewrote the note with a python script after every cat — 12 context edits for 6 files, plus one 40 KB turn where the trim my edit should have done landed too late. ctx_note (plugins/ctx_note, built and reloaded) does that replace-all-notes update in one tool call; its test replaces 2 note blocks with 1."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "Own-code change: plugin `ctx_trim` (RIG_HOME/plugins/ctx_trim) — its `note` parameter now DROPS every existing note block and writes the given one in their place (report says \"note set: ... N old note block(s) replaced\"), so calling `ctx_trim` with a note after every read can no longer pile up copies; its block walk is the free fn `rewrite(text, keep, max_bytes, note, dry_run)`.",
+          "evidence": "In this session I passed a cumulative note to ctx_trim after each of 8 reads; they stacked into 7 note blocks that one ctx_note call had to replace at the end (\"7 old note block(s) replaced\"). Edited ctx_trim/src/lib.rs, added `is_note_block` + `rewrite`, added the test `a_note_replaces_the_notes_already_there`; `cargo test` in that crate passes 2/2 and `rig plugin check --build` compiles the agent."
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "reason": "add #10",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "Trimming your context file: after a large `cat`/read, call the `ctx_trim` tool (path, keep=[\"KEY_\",\"NEXT FILE\"], note=\"<the facts to keep>\") instead of editing the file by hand; it keeps every `[[CTX <id> <role>]]` header and only shortens `tool` blocks, then appends your note. Never edit by line indices: the file is rewritten each turn, so numbers from an earlier read are stale.",
+          "evidence": "In the 10-file chain task I trimmed the .clm file with hand-computed line ranges (lines[325:629], lines[5:309]); one script had a placeholder that silently did nothing and another dropped header lines and my earlier notes, and later the blocks I had replaced reappeared as empty `[[CTX 46 tool]]`, so I had to re-read m3qcz36v.log and re-add a note — 10 context edits for a ten-file job."
+        },
+        {
+          "id": 1,
+          "kind": "memory",
+          "text": "A shell command that succeeds but prints nothing shows up as an empty body — `(no tool output)`, `No result provided`, or only `[exit code 0]` — never as an error. An empty body carries no information: never answer from it; re-run the command until its content visibly arrives (a `cat` of a 27 KB file can be replaced by a bare `[exit code 0]`).",
+          "evidence": "In the KV-store/chunk task, `cat chunk_1.txt`, `cat chunk_2.txt` and `cat chunk_3.txt` each came back as \"No result provided\" (a second empty-result wording, distinct from `(no tool output)` and `[exit code 0]`), yet I answered \"last line 0319\" for chunk_1/2/3 from the pattern of chunk_0; I only caught it later and had to re-cat each file to actually see `0319 beta ember ...`."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Before reading a large file or running a big listing, decide what you need from it and keep only that: extract the values/lines first (a one-line note), then drop the bulk. Keep word for word only what the answer will quote; never paste a whole listing just to remember a few facts from it.",
+          "evidence": "I printed the whole ctx_mode/src/lib.rs (374 lines) and utc_clock/src/lib.rs plus a 150-line PLUGINS.md excerpt, which filled ~11 KB of context I then had to trim; and in the chain task I kept whole 27 KB listings before extracting anything."
+        },
+        {
+          "id": 3,
+          "kind": "memory",
+          "text": "When the user restricts how files may be read, treat every inspection command (ls, wc, stat, ls -l) as covered by the restriction, not just content reads.",
+          "evidence": "In the KV-store/chunk task the user said \"read files only with cat, in full, one file per command\" yet I ran `ls -la; wc -c chunk_0.txt` to size the file; that was flagged as an instruction broken. Also, cat calls that returned \"No result provided\" were answered from guesswork instead of re-running."
+        },
+        {
+          "id": 4,
+          "kind": "skill",
+          "text": "When a data file is large but the answer is one line (a last line number, one value): (1) run `cat <file>` alone as its own command — no `ls`/`wc` probing before it, since a \"read only with cat\" instruction covers those too; (2) if the result body is empty, re-run the cat before answering, never infer the answer from earlier files; (3) in the same reply as the next action, call `ctx_trim` on the .clm file with keep=[\"<a few words of that answer line>\"] and a note holding the answer plus any user state (key-value store) verbatim, so the 28 KB body is dropped while the answer survives; (4) answer from the note, not from the raw output; (5) do step (3) after the LAST file too — trim before writing the final answer, so the answering call does not carry that last ~27 KB body.",
+          "evidence": "Chain task this session: I trimmed after files 1-7 but not after the final `cat 2ba2s50u.log` (27 KB), so the answering model call carried that body for nothing — 8 trims would have cost one more cheap call and saved ~7k tokens. The note alone (8 incidents + next file, ~150 bytes) was enough to build the sorted report and TOTAL 502."
+        },
+        {
+          "id": 5,
+          "kind": "skill",
+          "text": "Verify a trimmed read instead of re-scanning it: when the file's needed lines have known prefixes (e.g. `INCIDENT `, `NEXT FILE:`), pass them as `keep` and read ctx_trim's reply — \"k line(s) kept\" is proof of exactly how many lines matched, so \"2 line(s) kept\" means one sentinel of each kind and no hidden decoy lines, and the 27 KB body never has to be re-read or re-examined.",
+          "evidence": "Chain task this session: every ctx_trim reply reported \"2 line(s) kept\" for files of ~27 KB, which confirmed each file held exactly one INCIDENT and one NEXT FILE line, so I never had to scan a body I had already dropped."
+        },
+        {
+          "id": 6,
+          "kind": "memory",
+          "text": "In generated chain/filler files the two meaningful lines sit at arbitrary positions in the middle of the filler, not at the end: `NEXT FILE: none` can appear with a hundred-plus filler lines after it, so the end of the chain is decided by that line's content, never by reaching the end of the file or the first blank stretch.",
+          "evidence": "Chain task this session: in the last file 2ba2s50u.log the `NEXT FILE: none` line sat around line 0177 with ~120 filler lines after it, and in rsvteo9g.log the NEXT FILE line (line ~0183) came before the INCIDENT line (~0249); stopping at either boundary would have missed data."
+        },
+        {
+          "id": 7,
+          "kind": "skill",
+          "text": "Keep a running store/facts in ONE note block with the `ctx_note` tool: `ctx_note(path=<.clm file>, text=<whole note, e.g. \"STORE k0=.. k1=..\" plus FACT lines>)` replaces every note block with that one, so the update is a single call and duplicate copies can never make an `edit` ambiguous or leave a stale value behind. Do not hand-edit the note line with `edit` (it matches once per copy) and do not add notes via `ctx_trim`'s `note` param repeatedly without a `ctx_note` pass afterwards.",
+          "evidence": "KV-store task this session: my first note was appended by ctx_trim and then echoed in later messages, so `edit` on the store line failed with \"matches 2 places, starting at lines 11, 14\" (twice), and I then rewrote the note with a python script after every cat — 12 context edits for 6 files, plus one 40 KB turn where the trim my edit should have done landed too late. ctx_note (plugins/ctx_note, built and reloaded) does that replace-all-notes update in one tool call; its test replaces 2 note blocks with 1."
+        },
+        {
+          "id": 8,
+          "kind": "skill",
+          "text": "Own-code change: plugin `ctx_trim` (RIG_HOME/plugins/ctx_trim) — its `note` parameter now DROPS every existing note block and writes the given one in their place (report says \"note set: ... N old note block(s) replaced\"), so calling `ctx_trim` with a note after every read can no longer pile up copies; its block walk is the free fn `rewrite(text, keep, max_bytes, note, dry_run)`.",
+          "evidence": "In this session I passed a cumulative note to ctx_trim after each of 8 reads; they stacked into 7 note blocks that one ctx_note call had to replace at the end (\"7 old note block(s) replaced\"). Edited ctx_trim/src/lib.rs, added `is_note_block` + `rewrite`, added the test `a_note_replaces_the_notes_already_there`; `cargo test` in that crate passes 2/2 and `rig plugin check --build` compiles the agent."
+        },
+        {
+          "id": 9,
+          "kind": "prompt",
+          "text": "When using `edit` to replace or delete a whole function, include its signature line (`fn ...(`) in old_text, not just its trailing lines, or the body can be left behind as an unclosed fragment that breaks the build; after such an edit, run a quick `grep -n 'fn '` on the file to confirm no orphan remains.",
+          "evidence": "While adding note replacement to ctx_trim/src/lib.rs, my `edit` old_text started at the tail of the old test helper (`out.join(\"\\n\")` / closing brace), so the file kept a dangling half function ending in `i = j;` right before `#[cfg(test)]` and could not compile; I fixed it by asserting anchor lines with python and deleting lines 187-218, then rebuilt."
+        }
+      ]
+    }
+  ]
+}

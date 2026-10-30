@@ -1,6 +1,6 @@
-# Experiments A–C: summary
+# Experiments A–D: summary
 
-All three ran on DeepSeek V4.1 Flash (`opencode-go/deepseek-v4.1-flash`) in
+All four ran on DeepSeek V4.1 Flash (`opencode-go/deepseek-v4.1-flash`) in
 this harness. Earlier GLM-5.3-Flash evals (rules followed 3/21 → 20/21,
 self-modification 4/4) are in the README. Raw data is in `eval/results/`.
 
@@ -11,10 +11,12 @@ self-modification 4/4) are in the README. Raw data is in `eval/results/`.
 | A | Can the harness learn unstated team rules from CI feedback alone, and can a gate keep bad lessons out? | **Yes, it learns** (rules 11/35 → 33/35). A gate blocks harm **only when its regression suite exercises that harm**. |
 | B | Does an agent that edits its own context (CLM, arXiv 2609.37725) beat summary compaction at a 32K budget? | **No: it ties.** It needs more tool calls and breaks instructions somewhat more often. |
 | C | Can the harness learn to do CLM better? | **No.** Ungated lessons made it worse (+38% tokens). The gate kept costs flat but found nothing that helped. |
+| D | Does learning in code (the agent writes its own plugin) work where lessons failed? | **Probably, but not proven.** All 3 code chains kept a CLM tool they wrote and used it in every test run; clean runs 20/24 vs 17/24 (CLM) and 15/24 (lessons). The gap is within noise at n=24. |
 
 The overall picture: learning *facts and rules* works well. Learning
 *procedural skill* (how to manage context) through prompt-level lessons did
-not work with this model. An outside gate is a useful brake, but only as
+not work with this model. Learning it as code (D) changed behavior where
+lessons had not, with a promising but not yet significant gain. An outside gate is a useful brake, but only as
 good as the cases it tests.
 
 ## Experiment A: learning from CI feedback, with a gate
@@ -115,6 +117,68 @@ family.
 - **Lessons were often correct in text** ("never pipe a data file into
   `tail`") but did not change behavior.
 
+## Experiment D: learning in code instead of lessons
+
+**Setup** (`eval/experiment_d.py`, 3 chains per arm, the same 6 episodes and
+gate as C's gated arm). Each chain has its own copy of the rig home, so a
+plugin cannot leak between chains.
+
+- `lessons`: self-modification off (`CONTINUAL_SELF_MODIFY=0`); `/refine`
+  can only change lessons.
+- `code`: `/refine` invites the agent to write, build and reload a small
+  general plugin when a lesson would not change its habits. A code change is
+  kept only if it builds, loses no clean gate run (rerun to confirm) and uses
+  at most 1.25x the tokens; a rejected change is rolled back and rebuilt.
+- Gate and test runs are frozen: no self-modification, plugin code
+  read-only. The rig source is read-only for the whole run.
+
+Tested on C's 24 test seeds per arm. `summary` and `clm` run with an empty
+state in a pristine home.
+
+| arm | clean | correct | broke read-only | mean tokens | ctx edits | tool calls |
+|---|---|---|---|---|---|---|
+| summary (no CLM) | 18/24 | 20/24 | 2/24 | 243K | 0 | 8.5 |
+| clm, empty state | 17/24 | 20/24 | 3/24 | 242K | 8.1 | 18.4 |
+| clm, gated lessons | 15/24 | 20/24 | 5/24 | 226K | 11.1 | 22.3 |
+| clm, gated code | **20/24** | 21/24 | **1/24** | 240K | 9.9 | 20.2 |
+
+- **The agent chose code every time.** It wrote 8 code changes in 18
+  episodes; all 8 built, and the gate kept 5 (3 rejected for tokens over
+  1.25x). Every code chain ended with a plugin of its own:
+  - r0: `ctx_trim` (a tool that cuts each large tool-output block in the
+    context file down to the lines matching given keys) plus `ctx_note` (a
+    tool that keeps a running note block in the context file).
+  - r1: `ctxkeep`, with a `ctx_edit` tool that lists the context file's
+    blocks and drops them by id, never the user's instructions.
+  - r2: `ctx_trim` again, written independently.
+- **Unlike C's lessons, the code changed behavior.** The learned tools were
+  called in every one of the code arm's 24 test runs (247 `ctx_trim`, 226
+  `ctx_edit`, 28 `ctx_note` calls). Read-only violations fell to 1/24,
+  against 3/24 for CLM and 5/24 for lessons. Most violations elsewhere were
+  `wc`/`tail` on a data file, and two lessons-arm runs edited the context
+  file with a Python heredoc that named a data file. Whether the tools caused
+  the drop is not shown.
+- **The gain is not yet significant.** 20/24 against 17/24 clean is
+  p ≈ 0.49 (Fisher), and per chain it ranged from 8/8 (r0) to 5/8 (r1).
+  Tokens stayed level with empty-state CLM.
+- **Gated lessons again did not help:** 15/24 clean and 5/24 violations,
+  with the gate keeping 9/18 changes (C's gated lessons: 18/24).
+
+Caveats:
+
+- The violation checker now also flags any tool other than `shell` called
+  with a data file as an argument. An agent-written tool could otherwise
+  read data around the "read with `cat`" rule. None of the learned tools
+  did.
+- The learned plugins are trusted code built into the agent. Here they ran
+  in per-chain homes in a sandbox, with the rig source read-only.
+- `ctx_mode` now counts the budget as compaction does; C used a
+  four-characters-a-token estimate. Same-seed `clm` and `summary` moved by
+  one clean run between C and D, a guide to the noise.
+
+Raw results, chain logs, final states and the plugins kept:
+`eval/results/experiment_d/`.
+
 ## Measurement notes
 
 - The read-only checker scans every shell command in the session log. It
@@ -146,10 +210,10 @@ family.
 
 1. **Gate suites with sibling tasks per learned rule**, so a gate can see the
    harm of lessons like no_env (the gap Experiment A found).
-2. **Enforce procedural constraints in code, not lessons.** C showed that
-   text lessons don't change tool-use habits. For example, a CLM helper tool
-   that prunes in one call, or a shell policy that blocks filters on
-   declared data files.
+2. **Repeat D with more seeds and chains** (or on a harder budget) to see
+   whether code learning's 20/24 vs 17/24 holds. D showed the agent will
+   write the tool itself and that it changes behavior; the effect size is
+   still open.
 3. **Retest CLM on a stronger model or a tighter budget** (8–16K), where
    summary compaction should lose more facts and self-management has more
    room to win.

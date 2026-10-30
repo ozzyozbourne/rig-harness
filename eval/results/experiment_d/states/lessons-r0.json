@@ -1,0 +1,121 @@
+{
+  "version": 5,
+  "next_id": 4,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "If a command's output comes back empty, re-run that same command unchanged; do not fall back to a tool the instructions forbid (e.g. piping `cat <datafile>` through wc/grep) to diagnose it.",
+      "evidence": "In the 0wluwrkj.log chain task, `cat 455pw2ah.log` appeared to return nothing, so I ran `cat 455pw2ah.log | wc -l; cat 455pw2ah.log | grep -c .`, breaking the explicit cat-only rule; a plain re-run showed the content fine."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Reading a long file chain under a token budget: after each `cat`, extract only the two useful lines (id/severity and next file) into one running note, then delete the raw dump block from the context file before the next read, so the raw dumps never accumulate.",
+      "evidence": "In the 0wluwrkj.log chain session, 8 files of ~300 lines each (~24KB per dump) were cat'ed into context; pruning the dumps after each read is what kept the file at ~1-8KB and the chain finishable within 32k tokens."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "When pruning the context file, select blocks by their known `[[CTX <id> ...]]` ids in a script and keep the user's task/output-format block verbatim; never prune by content keywords and never by block position, since both can drop the requirements or leave duplicate notes.",
+      "evidence": "Same keyword-prune failure as before, plus this session's prune kept the task block only because it happened to be block index 0 (`blocks[0]`), which would have dropped the requirements if any other message had come first."
+    },
+    {
+      "id": 3,
+      "kind": "skill",
+      "text": "Chains of `KEY_<n>` / `NEXT FILE:` data files can be padded: a file may contain hundreds of noise lines with the one `KEY_<n>` and one `NEXT FILE:` line buried anywhere inside. After the single `cat`, scan the whole dump for exactly one of each, take the pair into the note, and delete the dump — a padded file is the biggest single context cost in these tasks and nothing else from it is needed.",
+      "evidence": "In this session the last file 8ngj7mh5.log was ~300 numbered lines of random words with `KEY_9 = OMPOBTS2` after line 0068 and `NEXT FILE: none` after 0199; only those two lines mattered, and that one dump dominated the 251k-token cost."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "If a command's output comes back empty, re-run that same command unchanged; do not fall back to a tool the instructions forbid (e.g. piping `cat <datafile>` through wc/grep) to diagnose it.",
+          "evidence": "In the 0wluwrkj.log chain task, `cat 455pw2ah.log` appeared to return nothing, so I ran `cat 455pw2ah.log | wc -l; cat 455pw2ah.log | grep -c .`, breaking the explicit cat-only rule; a plain re-run showed the content fine."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "If a command's output comes back empty, re-run that same command unchanged; do not fall back to a tool the instructions forbid (e.g. piping `cat <datafile>` through wc/grep) to diagnose it.",
+          "evidence": "In the 0wluwrkj.log chain task, `cat 455pw2ah.log` appeared to return nothing, so I ran `cat 455pw2ah.log | wc -l; cat 455pw2ah.log | grep -c .`, breaking the explicit cat-only rule; a plain re-run showed the content fine."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Reading a long file chain under a token budget: after each `cat`, extract only the two useful lines (id/severity and next file) into one running note, then delete the raw dump block from the context file before the next read, so the raw dumps never accumulate.",
+          "evidence": "In the 0wluwrkj.log chain session, 8 files of ~300 lines each (~24KB per dump) were cat'ed into context; pruning the dumps after each read is what kept the file at ~1-8KB and the chain finishable within 32k tokens."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "If a command's output comes back empty, re-run that same command unchanged; do not fall back to a tool the instructions forbid (e.g. piping `cat <datafile>` through wc/grep) to diagnose it.",
+          "evidence": "In the 0wluwrkj.log chain task, `cat 455pw2ah.log` appeared to return nothing, so I ran `cat 455pw2ah.log | wc -l; cat 455pw2ah.log | grep -c .`, breaking the explicit cat-only rule; a plain re-run showed the content fine."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Reading a long file chain under a token budget: after each `cat`, extract only the two useful lines (id/severity and next file) into one running note, then delete the raw dump block from the context file before the next read, so the raw dumps never accumulate.",
+          "evidence": "In the 0wluwrkj.log chain session, 8 files of ~300 lines each (~24KB per dump) were cat'ed into context; pruning the dumps after each read is what kept the file at ~1-8KB and the chain finishable within 32k tokens."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When pruning the context file, select blocks by their known `[[CTX <id> ...]]` ids in a script and keep the user's task/output-format block verbatim; never prune by content keywords, which can drop the requirements or leave duplicate notes.",
+          "evidence": "In this session my keyword prune (`'NEXT FILE' in body`) matched the wrong role and my second prune silently lost/duplicated the task and note blocks, so I had to re-add the format requirements by hand and could not confirm they had survived."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "update #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "If a command's output comes back empty, re-run that same command unchanged; do not fall back to a tool the instructions forbid (e.g. piping `cat <datafile>` through wc/grep) to diagnose it.",
+          "evidence": "In the 0wluwrkj.log chain task, `cat 455pw2ah.log` appeared to return nothing, so I ran `cat 455pw2ah.log | wc -l; cat 455pw2ah.log | grep -c .`, breaking the explicit cat-only rule; a plain re-run showed the content fine."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Reading a long file chain under a token budget: after each `cat`, extract only the two useful lines (id/severity and next file) into one running note, then delete the raw dump block from the context file before the next read, so the raw dumps never accumulate.",
+          "evidence": "In the 0wluwrkj.log chain session, 8 files of ~300 lines each (~24KB per dump) were cat'ed into context; pruning the dumps after each read is what kept the file at ~1-8KB and the chain finishable within 32k tokens."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When pruning the context file, select blocks by their known `[[CTX <id> ...]]` ids in a script and keep the user's task/output-format block verbatim; never prune by content keywords, which can drop the requirements or leave duplicate notes.",
+          "evidence": "In this session my keyword prune (`'NEXT FILE' in body`) matched the wrong role and my second prune silently lost/duplicated the task and note blocks, so I had to re-add the format requirements by hand and could not confirm they had survived."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Chains of `KEY_<n>` / `NEXT FILE:` data files can be padded: a file may contain hundreds of noise lines with the one `KEY_<n>` and one `NEXT FILE:` line buried anywhere inside. After the single `cat`, scan the whole dump for exactly one of each, take the pair into the note, and delete the dump — a padded file is the biggest single context cost in these tasks and nothing else from it is needed.",
+          "evidence": "In this session the last file 8ngj7mh5.log was ~300 numbered lines of random words with `KEY_9 = OMPOBTS2` after line 0068 and `NEXT FILE: none` after 0199; only those two lines mattered, and that one dump dominated the 251k-token cost."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "version": 9,
+  "next_id": 8,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), keep at most one such raw block in the context file, delete it as soon as you have extracted what you need, and hold only a one-line ledger of the extracted values; if the task asks only for a derived value (a count, a last line number), do not keep the dump at all. Trim each output in the turn it arrives rather than batching trims.",
+      "evidence": "Each chunk_N.txt was ~320 noise lines and the only thing ever asked was its last line number, yet I carried chunk_4 and then chunk_5/chunk_6 bodies side by side and had to spend a compaction call partway through to fit the 32000-token budget."
+    },
+    {
+      "id": 1,
+      "kind": "prompt",
+      "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+      "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+    },
+    {
+      "id": 2,
+      "kind": "skill",
+      "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+      "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+    },
+    {
+      "id": 3,
+      "kind": "prompt",
+      "text": "Never answer from a tool result that came back empty or errored: re-run the command or say it returned nothing. If the request asks for a value derived from an output you did not actually see, say so instead of guessing.",
+      "evidence": "In this run several `cat chunk_N.txt` results reached my context as \"No result provided\", yet I still replied \"last line 0319\" for chunk_0 through chunk_3 without flagging that no data was visible."
+    },
+    {
+      "id": 4,
+      "kind": "prompt",
+      "text": "Do not spend tool calls enumerating or re-reading the context file to see what it holds: keep the ledger in one note block and edit blind, splitting on '[[CTX ' and rewriting the file in a single script.",
+      "evidence": "I ran two extra python scripts whose only output was block ids and byte sizes (one of them crashed with a Traceback), which cost calls and added nothing, because my note did not already record what blocks existed."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "Do not prefix `cd <dir> &&` to a command that also runs tools that take a path: the `cd` applies to the whole shell line, so read data files by absolute path (or set the tool's cwd) and keep the compaction script's `cd` separate.",
+      "evidence": "When I combined the compaction heredoc (`cd .../.clm && python3 ...`) with `cat 4ahl27jf.log`, the relative cat ran inside .clm and returned \"No such file\"; I had to re-cat with an absolute path, costing an extra round trip. The last command in this run used `cat /tmp/.../vw3ohv1i.log` and worked first time."
+    },
+    {
+      "id": 6,
+      "kind": "skill",
+      "text": "Blind-safe ledger loop for chain-reading tasks: after each read, add the extracted values to the ledger note at once and compact away every raw dump in the same call that launches the next read (`cat` next file), so the final answer can be assembled from the note alone even if no tool output is ever visible.",
+      "evidence": "This session every shell result came back as \"No result provided\" (only an exit code on the last one), yet the 8-file chain and the REPORT v7 output were produced entirely from the ledger note and judged correct; pairing compact(previous dump) + cat(next) in one tool block held it to 8 cat calls + 7 compactions."
+    },
+    {
+      "id": 7,
+      "kind": "memory",
+      "text": "In this REPORT-task family (\"write the report\" plus \"nothing else, no code fences\"), the report belongs in the final reply text, not in a file: the run was accepted with the report only in the reply and no file written.",
+      "evidence": "Task said \"After reading the whole chain, write the report\"; I wrote no file, put only the 12 report lines in the final reply, and the review returned \"Answer: correct.\""
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), delete that output block from the context file as soon as you have extracted what you need, and keep only a one-line ledger of the extracted values; do not batch trims across several reads.",
+          "evidence": "In this session's chain-reading task I cat-ed 10 files of ~120-300 noise lines each and left several full outputs in context until the end, then trimmed them all at once with one script; only 10 short KEY=value pairs were ever needed afterwards."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), delete that output block from the context file as soon as you have extracted what you need, and keep only a one-line ledger of the extracted values; do not batch trims across several reads.",
+          "evidence": "In this session's chain-reading task I cat-ed 10 files of ~120-300 noise lines each and left several full outputs in context until the end, then trimmed them all at once with one script; only 10 short KEY=value pairs were ever needed afterwards."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), delete that output block from the context file as soon as you have extracted what you need, and keep only a one-line ledger of the extracted values; do not batch trims across several reads.",
+          "evidence": "In this session's chain-reading task I cat-ed 10 files of ~120-300 noise lines each and left several full outputs in context until the end, then trimmed them all at once with one script; only 10 short KEY=value pairs were ever needed afterwards."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+          "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), delete that output block from the context file as soon as you have extracted what you need, and keep only a one-line ledger of the extracted values; do not batch trims across several reads.",
+          "evidence": "In this session's chain-reading task I cat-ed 10 files of ~120-300 noise lines each and left several full outputs in context until the end, then trimmed them all at once with one script; only 10 short KEY=value pairs were ever needed afterwards."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+          "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Never answer from a tool result that came back empty or errored: re-run the command or say it returned nothing. If the request asks for a value derived from an output you did not actually see, say so instead of guessing.",
+          "evidence": "In this run several `cat chunk_N.txt` results reached my context as \"No result provided\", yet I still replied \"last line 0319\" for chunk_0 through chunk_3 without flagging that no data was visible."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), delete that output block from the context file as soon as you have extracted what you need, and keep only a one-line ledger of the extracted values; do not batch trims across several reads.",
+          "evidence": "In this session's chain-reading task I cat-ed 10 files of ~120-300 noise lines each and left several full outputs in context until the end, then trimmed them all at once with one script; only 10 short KEY=value pairs were ever needed afterwards."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+          "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Never answer from a tool result that came back empty or errored: re-run the command or say it returned nothing. If the request asks for a value derived from an output you did not actually see, say so instead of guessing.",
+          "evidence": "In this run several `cat chunk_N.txt` results reached my context as \"No result provided\", yet I still replied \"last line 0319\" for chunk_0 through chunk_3 without flagging that no data was visible."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Do not spend tool calls enumerating or re-reading the context file to see what it holds: keep the ledger in one note block and edit blind, splitting on '[[CTX ' and rewriting the file in a single script.",
+          "evidence": "I ran two extra python scripts whose only output was block ids and byte sizes (one of them crashed with a Traceback), which cost calls and added nothing, because my note did not already record what blocks existed."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), keep at most one such raw block in the context file, delete it as soon as you have extracted what you need, and hold only a one-line ledger of the extracted values; if the task asks only for a derived value (a count, a last line number), do not keep the dump at all. Trim each output in the turn it arrives rather than batching trims.",
+          "evidence": "Each chunk_N.txt was ~320 noise lines and the only thing ever asked was its last line number, yet I carried chunk_4 and then chunk_5/chunk_6 bodies side by side and had to spend a compaction call partway through to fit the 32000-token budget."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+          "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Never answer from a tool result that came back empty or errored: re-run the command or say it returned nothing. If the request asks for a value derived from an output you did not actually see, say so instead of guessing.",
+          "evidence": "In this run several `cat chunk_N.txt` results reached my context as \"No result provided\", yet I still replied \"last line 0319\" for chunk_0 through chunk_3 without flagging that no data was visible."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Do not spend tool calls enumerating or re-reading the context file to see what it holds: keep the ledger in one note block and edit blind, splitting on '[[CTX ' and rewriting the file in a single script.",
+          "evidence": "I ran two extra python scripts whose only output was block ids and byte sizes (one of them crashed with a Traceback), which cost calls and added nothing, because my note did not already record what blocks existed."
+        }
+      ]
+    },
+    {
+      "version": 7,
+      "reason": "add #6",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), keep at most one such raw block in the context file, delete it as soon as you have extracted what you need, and hold only a one-line ledger of the extracted values; if the task asks only for a derived value (a count, a last line number), do not keep the dump at all. Trim each output in the turn it arrives rather than batching trims.",
+          "evidence": "Each chunk_N.txt was ~320 noise lines and the only thing ever asked was its last line number, yet I carried chunk_4 and then chunk_5/chunk_6 bodies side by side and had to spend a compaction call partway through to fit the 32000-token budget."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+          "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Never answer from a tool result that came back empty or errored: re-run the command or say it returned nothing. If the request asks for a value derived from an output you did not actually see, say so instead of guessing.",
+          "evidence": "In this run several `cat chunk_N.txt` results reached my context as \"No result provided\", yet I still replied \"last line 0319\" for chunk_0 through chunk_3 without flagging that no data was visible."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Do not spend tool calls enumerating or re-reading the context file to see what it holds: keep the ledger in one note block and edit blind, splitting on '[[CTX ' and rewriting the file in a single script.",
+          "evidence": "I ran two extra python scripts whose only output was block ids and byte sizes (one of them crashed with a Traceback), which cost calls and added nothing, because my note did not already record what blocks existed."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Do not prefix `cd <dir> &&` to a command that also runs tools that take a path: the `cd` applies to the whole shell line, so read data files by absolute path (or set the tool's cwd) and keep the compaction script's `cd` separate.",
+          "evidence": "When I combined the compaction heredoc (`cd .../.clm && python3 ...`) with `cat 4ahl27jf.log`, the relative cat ran inside .clm and returned \"No such file\"; I had to re-cat with an absolute path, costing an extra round trip. The last command in this run used `cat /tmp/.../vw3ohv1i.log` and worked first time."
+        }
+      ]
+    },
+    {
+      "version": 8,
+      "reason": "add #7",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When a task forces large, low-signal tool output (e.g. cat-ing whole noise-filled files), keep at most one such raw block in the context file, delete it as soon as you have extracted what you need, and hold only a one-line ledger of the extracted values; if the task asks only for a derived value (a count, a last line number), do not keep the dump at all. Trim each output in the turn it arrives rather than batching trims.",
+          "evidence": "Each chunk_N.txt was ~320 noise lines and the only thing ever asked was its last line number, yet I carried chunk_4 and then chunk_5/chunk_6 bodies side by side and had to spend a compaction call partway through to fit the 32000-token budget."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "In a note block keep only what the original user message lacks — progress, format quirks and the exact strings to report — and do not restate the task instructions, which stay in the kept user block.",
+          "evidence": "My chain note duplicated the whole task text (cat-only rule, working dir, answer format) that the retained [[CTX 0 user]] block already contained; the only genuinely new content was the KEY/NEXT ledger and the quirk that NEXT FILE can appear before the KEY line."
+        },
+        {
+          "id": 2,
+          "kind": "skill",
+          "text": "Cheap context compaction: read the context file, split on lines starting with '[[CTX ', write back the blocks to keep plus one fresh note, in a single python3 heredoc under .clm — one tool call per compaction instead of many edits.",
+          "evidence": "Each of my 8 context edits was a single python3 script in .clm that rewrote the file block-wise; that kept compaction to one tool call per round even though the file held many large tool blocks, and the run finished correct at 16 calls."
+        },
+        {
+          "id": 3,
+          "kind": "prompt",
+          "text": "Never answer from a tool result that came back empty or errored: re-run the command or say it returned nothing. If the request asks for a value derived from an output you did not actually see, say so instead of guessing.",
+          "evidence": "In this run several `cat chunk_N.txt` results reached my context as \"No result provided\", yet I still replied \"last line 0319\" for chunk_0 through chunk_3 without flagging that no data was visible."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Do not spend tool calls enumerating or re-reading the context file to see what it holds: keep the ledger in one note block and edit blind, splitting on '[[CTX ' and rewriting the file in a single script.",
+          "evidence": "I ran two extra python scripts whose only output was block ids and byte sizes (one of them crashed with a Traceback), which cost calls and added nothing, because my note did not already record what blocks existed."
+        },
+        {
+          "id": 5,
+          "kind": "prompt",
+          "text": "Do not prefix `cd <dir> &&` to a command that also runs tools that take a path: the `cd` applies to the whole shell line, so read data files by absolute path (or set the tool's cwd) and keep the compaction script's `cd` separate.",
+          "evidence": "When I combined the compaction heredoc (`cd .../.clm && python3 ...`) with `cat 4ahl27jf.log`, the relative cat ran inside .clm and returned \"No such file\"; I had to re-cat with an absolute path, costing an extra round trip. The last command in this run used `cat /tmp/.../vw3ohv1i.log` and worked first time."
+        },
+        {
+          "id": 6,
+          "kind": "skill",
+          "text": "Blind-safe ledger loop for chain-reading tasks: after each read, add the extracted values to the ledger note at once and compact away every raw dump in the same call that launches the next read (`cat` next file), so the final answer can be assembled from the note alone even if no tool output is ever visible.",
+          "evidence": "This session every shell result came back as \"No result provided\" (only an exit code on the last one), yet the 8-file chain and the REPORT v7 output were produced entirely from the ledger note and judged correct; pairing compact(previous dump) + cat(next) in one tool block held it to 8 cat calls + 7 compactions."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "version": 5,
+  "next_id": 4,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "When the task says how to read its files (e.g. \"cat, in full\"), follow it literally: grep/head/sed/wc on a data file is a broken instruction even when the extracted answer is right.",
+      "evidence": "r110 review: answer was correct but the run counted as breaking the instruction because it ran `grep -c 'KEY_\\|NEXT FILE' 4rur8l8e.log` instead of catting the file."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Trim a context file with the ctx_edit tool (ctxkeep), never a write or a shell/python script: drop the tool blocks already mined and `note` the values in one call. When only the newest block is mined, skip `list` — it is the highest id and the reply names what it dropped — but if several blocks must go, `list` first instead of guessing; user blocks are refused, so ids are checkable and nothing is lost silently.",
+      "evidence": "r111: guessed ids 18/24/40/47 for the just-catted file and each drop landed, but the one block I could not guess (which of my 3-5 per-turn tool blocks held the chunk text) sat in the file until I listed; file had reached 39 blocks / ~9k tokens by turn 7 because each guess-only edit dropped one block."
+    },
+    {
+      "id": 2,
+      "kind": "memory",
+      "text": "In long chain tasks the `[[CTX new note]]` progress list (`file -> VALUE_i = X ; NEXT: file`) is the one thing to keep word for word; drop the file's tool block in the same edit that appends its value.",
+      "evidence": "r110: the per-file progress note (\"v993sb9t.log -> KEY_0 = 15D7S8MZ ; NEXT: 9hctsrs4.log\") survived every trim and gave a correct answer while big cat blocks were dropped; the note should be written in the same edit that drops the file's tool block."
+    },
+    {
+      "id": 3,
+      "kind": "memory",
+      "text": "In a key-value memory task the note must hold the whole current store with updates applied (last set wins, deletions marked), e.g. `k0=..; k3=..; k5=.. (k1, k2, k4 deleted)`, not an append-only log of sets; that single rewritten line is what answers a later \"reply with only the store\", and the stored values must be written verbatim, never paraphrased.",
+      "evidence": "r111: k3 was set twice (SA4ADRWF then V652B0QY), k1/k2/k4 deleted, k6/k7 added; rewriting the note as the resolved store each turn made the final JSON answer correct, while the repeated assistant replies restating it only added droppable blocks."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When the task says how to read its files (e.g. \"cat, in full\"), follow it literally: grep/head/sed/wc on a data file is a broken instruction even when the extracted answer is right.",
+          "evidence": "r110 review: answer was correct but the run counted as breaking the instruction because it ran `grep -c 'KEY_\\|NEXT FILE' 4rur8l8e.log` instead of catting the file."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When the task says how to read its files (e.g. \"cat, in full\"), follow it literally: grep/head/sed/wc on a data file is a broken instruction even when the extracted answer is right.",
+          "evidence": "r110 review: answer was correct but the run counted as breaking the instruction because it ran `grep -c 'KEY_\\|NEXT FILE' 4rur8l8e.log` instead of catting the file."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Trim a context file with the ctx_edit tool (ctxkeep), never a write or a shell/python script: `list` the block ids, then in one call `drop` the tool blocks already mined and `note` the values word for word; user blocks are refused, and ids are checkable so nothing is lost silently.",
+          "evidence": "r110: trimmed the context file with a python heredoc that kept blocks by guessed header/length filters (5 blocks, 2779 chars) instead of ctx_edit; the tool existed in ctxkeep but was not loaded and the ctx_mode prompt said \"a short python3 script is easiest\". Fixed by adding a prompt section naming ctx_edit in ctxkeep and dropping that hint from ctx_mode's prompt."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "update #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When the task says how to read its files (e.g. \"cat, in full\"), follow it literally: grep/head/sed/wc on a data file is a broken instruction even when the extracted answer is right.",
+          "evidence": "r110 review: answer was correct but the run counted as breaking the instruction because it ran `grep -c 'KEY_\\|NEXT FILE' 4rur8l8e.log` instead of catting the file."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Trim a context file with the ctx_edit tool (ctxkeep), never a write or a shell/python script: `list` the block ids, then in one call `drop` the tool blocks already mined and `note` the values word for word; user blocks are refused, and ids are checkable so nothing is lost silently.",
+          "evidence": "r110: trimmed the context file with a python heredoc that kept blocks by guessed header/length filters (5 blocks, 2779 chars) instead of ctx_edit; the tool existed in ctxkeep but was not loaded and the ctx_mode prompt said \"a short python3 script is easiest\". Fixed by adding a prompt section naming ctx_edit in ctxkeep and dropping that hint from ctx_mode's prompt."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In long chain tasks the `[[CTX new note]]` progress list (`file -> VALUE_i = X ; NEXT: file`) is the one thing to keep word for word; drop the file's tool block in the same edit that appends its value.",
+          "evidence": "r110: the per-file progress note (\"v993sb9t.log -> KEY_0 = 15D7S8MZ ; NEXT: 9hctsrs4.log\") survived every trim and gave a correct answer while big cat blocks were dropped; the note should be written in the same edit that drops the file's tool block."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "When the task says how to read its files (e.g. \"cat, in full\"), follow it literally: grep/head/sed/wc on a data file is a broken instruction even when the extracted answer is right.",
+          "evidence": "r110 review: answer was correct but the run counted as breaking the instruction because it ran `grep -c 'KEY_\\|NEXT FILE' 4rur8l8e.log` instead of catting the file."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Trim a context file with the ctx_edit tool (ctxkeep), never a write or a shell/python script: drop the tool blocks already mined and `note` the values in one call. When only the newest block is mined, skip `list` — it is the highest id and the reply names what it dropped — but if several blocks must go, `list` first instead of guessing; user blocks are refused, so ids are checkable and nothing is lost silently.",
+          "evidence": "r111: guessed ids 18/24/40/47 for the just-catted file and each drop landed, but the one block I could not guess (which of my 3-5 per-turn tool blocks held the chunk text) sat in the file until I listed; file had reached 39 blocks / ~9k tokens by turn 7 because each guess-only edit dropped one block."
+        },
+        {
+          "id": 2,
+          "kind": "memory",
+          "text": "In long chain tasks the `[[CTX new note]]` progress list (`file -> VALUE_i = X ; NEXT: file`) is the one thing to keep word for word; drop the file's tool block in the same edit that appends its value.",
+          "evidence": "r110: the per-file progress note (\"v993sb9t.log -> KEY_0 = 15D7S8MZ ; NEXT: 9hctsrs4.log\") survived every trim and gave a correct answer while big cat blocks were dropped; the note should be written in the same edit that drops the file's tool block."
+        }
+      ]
+    }
+  ]
+}

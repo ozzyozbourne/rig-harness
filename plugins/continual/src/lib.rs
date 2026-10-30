@@ -22,6 +22,9 @@ const NAME: &str = "continual";
 const STATE_FILE: &str = "continual/state.json";
 /// Overrides where the state is kept: a file path, such as one per eval run.
 const STATE_ENV: &str = "CONTINUAL_STATE";
+/// `0` turns self-modification off: no guide in the prompt, and
+/// `harness_reload` refuses. An eval sets it for runs that must not change code.
+const SELF_MODIFY_ENV: &str = "CONTINUAL_SELF_MODIFY";
 /// How many earlier versions the history keeps.
 const HISTORY: usize = 50;
 
@@ -205,7 +208,10 @@ fn sync_section(
         return;
     }
     let home = home.map(|h| h.0.root().display().to_string()).unwrap_or_else(|| "$RIG_HOME".into());
-    let text = format!("{}\n{}", harness.state.section(), self_modify_guide(&home));
+    let mut text = harness.state.section();
+    if self_modify() {
+        text = format!("{text}\n{}", self_modify_guide(&home));
+    }
     match sections.single_mut() {
         Ok(mut section) => {
             if section.text != text {
@@ -220,6 +226,10 @@ fn sync_section(
             ));
         }
     }
+}
+
+fn self_modify() -> bool {
+    std::env::var(SELF_MODIFY_ENV).map_or(true, |v| v != "0")
 }
 
 fn self_modify_guide(home: &str) -> String {
@@ -367,6 +377,7 @@ fn on_reload(
     mut calls: Query<&mut Decision, ToolCalls>,
 ) {
     let result = match reload {
+        _ if !self_modify() => Err("Self-modification is off in this run, so this agent cannot rebuild itself.".to_owned()),
         Some(mut reload) => reload.ask(called.agent).map_err(str::to_owned),
         None => Err("The ReloadPlugin is not loaded, so this agent cannot rebuild itself.".to_owned()),
     };

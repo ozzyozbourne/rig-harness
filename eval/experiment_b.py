@@ -165,19 +165,19 @@ def grade(family, answer, expected):
     return facts, lines == report_lines(expected)
 
 
-def session_log_lines(session):
-    """Every line of every agent log of a rig session."""
-    home = os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
+def session_log_lines(session, home=None):
+    """Every line of every agent log of a rig session kept in `home` (default RIG_HOME)."""
+    home = home or os.environ.get("RIG_HOME", os.path.expanduser("~/.rig"))
     for path in glob.glob(os.path.join(home, "sessions", session or "-", "logs", "*.jsonl")):
         with open(path) as f:
             yield from f
 
 
-def session_counts(session):
+def session_counts(session, home=None):
     """(summary compactions, ctx_mode edits and cuts) in a session's logs, from
     the asides each one leaves."""
     kinds = collections.Counter()
-    for line in session_log_lines(session):
+    for line in session_log_lines(session, home):
         if '"type":"aside"' in line:
             kinds[((json.loads(line).get("aside") or {}).get("kind"))] += 1
     return kinds["rig.compaction"], kinds["ctx_mode.edit"] + kinds["ctx_mode.cut"]
@@ -208,35 +208,55 @@ def violation(commands, names):
     return None
 
 
-def session_commands(session):
-    """Every shell command a session's agents ran, from its logs."""
+def session_calls(session, home=None):
+    """Every (tool name, arguments) a session's agents called, from its logs."""
     out = []
 
     def walk(x):
         if isinstance(x, dict):
-            if x.get("name") == "shell" and isinstance(x.get("arguments"), dict):
-                out.append(x["arguments"].get("command", ""))
+            if isinstance(x.get("name"), str) and isinstance(x.get("arguments"), dict):
+                out.append((x["name"], x["arguments"]))
             for v in x.values():
                 walk(v)
         elif isinstance(x, list):
             for v in x:
                 walk(v)
 
-    for line in session_log_lines(session):
-        if '"shell"' in line:
+    for line in session_log_lines(session, home):
+        if '"arguments"' in line:
             walk(json.loads(line))
     return out
 
 
-def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=None):
+def session_commands(session, home=None):
+    """Every shell command a session's agents ran, from its logs."""
+    return [args.get("command", "") for name, args in session_calls(session, home) if name == "shell"]
+
+
+def tool_violation(calls, names):
+    """The first call of a tool other than `shell` whose argument is a data file
+    (one of `names`), such as `read` or a tool the agent wrote, or None:
+    the tasks allow reading data files only with `cat`."""
+    for name, args in calls:
+        if name in ("shell", "harness_state", "harness_reload"):
+            continue
+        values = [v for v in args.values() if isinstance(v, str)]
+        values += [x for v in args.values() if isinstance(v, list) for x in v if isinstance(x, str)]
+        if any(os.path.basename(v.strip()) in names for v in values):
+            return f"{name} {json.dumps(args)}"
+    return None
+
+
+def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=None, home=None, env=None):
     """One run of `family` seed `rep` in CTX_MODE `mode` (default `arm`), with the
-    continual state file `state` (default a new empty one), which it may change."""
+    continual state file `state` (default a new empty one), which it may change,
+    in the rig home `home` (default RIG_HOME) with the extra environment `env`."""
     files, turns, expected = make(family, rep)
     repo = os.path.join(out, "runs", tag or arm, family, f"r{rep}")
     make_repo(repo, files)
     if state is None:
         state = fresh(repo + ".state.json")
-    env = {"CTX_MODE": mode or arm, "CTX_BUDGET": BUDGET}
+    env = {"CTX_MODE": mode or arm, "CTX_BUDGET": BUDGET, **(env or {}), **({"RIG_HOME": home} if home else {})}
     steps, session = [], None
     for turn in turns:
         r = rig(repo, turn, state, session, timeout=600, env=env)
@@ -246,8 +266,10 @@ def one(out, arm, family, rep, state=None, tag=None, log="results.jsonl", mode=N
             break
     answer = steps[-1]["answer"] if len(steps) == len(turns) else ""
     score, ok = grade(family, answer, expected)
-    compactions, edits = session_counts(session)
-    broke = violation(session_commands(session), list(files))
+    compactions, edits = session_counts(session, home)
+    calls = session_calls(session, home)
+    names = list(files)
+    broke = violation([a.get("command", "") for n, a in calls if n == "shell"], names) or tool_violation(calls, names)
     row = {"arm": arm, "family": family, "rep": rep, "success": ok, "score": round(score, 3),
            **{k: sum(s[k] for s in steps) for k in ("tokens", "input_tokens", "cached_tokens")},
            "tool_calls": sum(len(s["tool_calls"]) for s in steps), "compactions": compactions, "ctx_edits": edits,

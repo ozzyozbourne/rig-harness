@@ -66,7 +66,7 @@ Raw results are in `eval/results/`. `eval/selftest.py` checks that every
 grader fails the untouched repo and passes a reference fix. Set
 `CONTINUAL_STATE=<file>` to give a run its own learned state.
 
-A summary of Experiments A–C (DeepSeek V4.1 Flash) is in [EXPERIMENTS.md](EXPERIMENTS.md).
+A summary of Experiments A–D (DeepSeek V4.1 Flash) is in [EXPERIMENTS.md](EXPERIMENTS.md).
 
 ## Experiment B: the agent manages its own context (DeepSeek V4.1 Flash)
 
@@ -133,6 +133,25 @@ the held-out `ledger` family.
   `tail`") but did not change behavior: violations did not drop.
 
 Raw results, chain logs and final lesson states: `eval/results/experiment_c/`.
+
+## Experiment D: learning in code instead of lessons
+
+`eval/experiment_d.py`: C's gated chains, but the `code` arm may write,
+build and reload its own plugin during `/refine`, gated on building, no lost
+clean run and at most 1.25x the tokens. The `lessons` arm has
+self-modification off. Each chain has its own rig home.
+
+| arm | clean | broke read-only | mean tokens |
+|---|---|---|---|
+| summary (no CLM) | 18/24 | 2/24 | 243K |
+| clm, empty state | 17/24 | 3/24 | 242K |
+| clm, gated lessons | 15/24 | 5/24 | 226K |
+| clm, gated code | 20/24 | 1/24 | 240K |
+
+All three code chains kept a context-editing tool they wrote (`ctx_trim`
+twice, `ctx_edit`) and used it in every test run. Small sample: the clean-run
+gap is within noise. Details in [EXPERIMENTS.md](EXPERIMENTS.md); the
+plugins are in `eval/results/experiment_d/plugins/`.
 
 ## Caveats
 

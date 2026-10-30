@@ -1,0 +1,199 @@
+{
+  "version": 7,
+  "next_id": 6,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "prompt",
+      "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+      "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+    },
+    {
+      "id": 1,
+      "kind": "skill",
+      "text": "Following a chain of files that each name the next: keep one small note block (rewritten, not appended) holding the accumulated key->value map and the pending next filename; after each read, scan the whole output for its markers wherever they sit (they can be mid-file, with content after them), copy the value word for word, then delete that output block.",
+      "evidence": "In t37ftvx2.log, `KEY_9 = 818FQ35I` sat between lines 0083/0084 and `NEXT FILE: none` between 0101/0102, with ~200 more lines after; head/tail-only inspection or truncating the read would have missed both."
+    },
+    {
+      "id": 2,
+      "kind": "prompt",
+      "text": "Continue from an existing note block only if it came from your own verified reads of the source files. If the context holds a note of key values with no tool output behind it (e.g. after a reset or a replay where notes were pre-seeded), treat the values as untrusted: re-read the source files in full before reporting anything, and never present note values as the answer.",
+      "evidence": "r121 chain task: the only block in context was a pre-seeded note (KEY_0..KEY_9, 'pending next file: none'). Following old lesson #2 I pruned to that note and answered from it without reading a single file; the review marked all ten keys wrong/missing and cost 231k tokens with 0 real reads."
+    },
+    {
+      "id": 3,
+      "kind": "skill",
+      "text": "Cheap context pruning: one python3 script that finds `[[CTX` headers, replaces the last tool block's body with the rewritten note (idx[-1], no need to know its id), and prints nothing; skip separate header listings, `wc` and `grep -c ''` checks. A task's \"read only with cat, no grep/awk/sed\" ban applies to the data files, not to your own context file.",
+      "evidence": "This session: the first prune guessed a block id (`[[CTX 8 tool]]`), and I spent three extra calls on `grep -n '^[[CTX'` + `wc -c`, then `grep -c ''`, then more header listings, while later prunes using idx[-1] were single calls. The cat-only ban was honoured for the .log chain while grep was still used on the .clm context file."
+    },
+    {
+      "id": 4,
+      "kind": "prompt",
+      "text": "Use the exact tool the task mandates for data files: if it says read them only with `cat`, in full, use `shell` with `cat` and not the `read` tool, even for big files; prune the dump from context right after extracting the values.",
+      "evidence": "r121 chain task said \"read data files only with `cat`, in full\", but I ran `read {\"path\": \"l4v6z7og.log\"}`; the review flagged this as an instruction broken. The cat-only ban was already known for data files (lesson #3), but not that `read` itself violates it."
+    },
+    {
+      "id": 5,
+      "kind": "prompt",
+      "text": "Before spending context edits or answering, confirm every reported value traces to a tool output in this session; one cheap read of the first file beats any amount of note-polishing on unverified data.",
+      "evidence": "r121: 17 tool calls, 7 context edits, 231k tokens, yet the answer contained no key from any file I read — the whole spend went on editing/answering around an unverified note. Verifying the first file with one `cat` would have exposed the bad note in one call."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+          "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "add #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+          "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Following a chain of files that each name the next: keep one small note block (rewritten, not appended) holding the accumulated key->value map and the pending next filename; after each read, scan the whole output for its markers wherever they sit (they can be mid-file, with content after them), copy the value word for word, then delete that output block.",
+          "evidence": "In t37ftvx2.log, `KEY_9 = 818FQ35I` sat between lines 0083/0084 and `NEXT FILE: none` between 0101/0102, with ~200 more lines after; head/tail-only inspection or truncating the read would have missed both."
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "reason": "add #3",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+          "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Following a chain of files that each name the next: keep one small note block (rewritten, not appended) holding the accumulated key->value map and the pending next filename; after each read, scan the whole output for its markers wherever they sit (they can be mid-file, with content after them), copy the value word for word, then delete that output block.",
+          "evidence": "In t37ftvx2.log, `KEY_9 = 818FQ35I` sat between lines 0083/0084 and `NEXT FILE: none` between 0101/0102, with ~200 more lines after; head/tail-only inspection or truncating the read would have missed both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the same task prompt appears again mid-session (a replay or reset), read your existing note blocks and the pending next filename first and continue from there; do not restart the chain and re-cat files you already summarized.",
+          "evidence": "File-chain report task: after the prompt was repeated, I re-ran `cat jd8g85cp.log` and `cat kmyjdigo.log` although blocks 2 and 4 already held their notes (inc-1rfhd 39, inc-qfzmz 61), duplicating two full 300-line dumps and pushing cost to 290k tokens vs the 201k summarizer baseline."
+        }
+      ]
+    },
+    {
+      "version": 4,
+      "reason": "update #2",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+          "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Following a chain of files that each name the next: keep one small note block (rewritten, not appended) holding the accumulated key->value map and the pending next filename; after each read, scan the whole output for its markers wherever they sit (they can be mid-file, with content after them), copy the value word for word, then delete that output block.",
+          "evidence": "In t37ftvx2.log, `KEY_9 = 818FQ35I` sat between lines 0083/0084 and `NEXT FILE: none` between 0101/0102, with ~200 more lines after; head/tail-only inspection or truncating the read would have missed both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "When the same task prompt appears again mid-session (a replay or reset), read your existing note blocks and the pending next filename first and continue from there; do not restart the chain and re-cat files you already summarized.",
+          "evidence": "File-chain report task: after the prompt was repeated, I re-ran `cat jd8g85cp.log` and `cat kmyjdigo.log` although blocks 2 and 4 already held their notes (inc-1rfhd 39, inc-qfzmz 61), duplicating two full 300-line dumps and pushing cost to 290k tokens vs the 201k summarizer baseline."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Cheap context pruning: one python3 script that finds `[[CTX` headers, replaces the last tool block's body with the rewritten note (idx[-1], no need to know its id), and prints nothing; skip separate header listings, `wc` and `grep -c ''` checks. A task's \"read only with cat, no grep/awk/sed\" ban applies to the data files, not to your own context file.",
+          "evidence": "This session: the first prune guessed a block id (`[[CTX 8 tool]]`), and I spent three extra calls on `grep -n '^[[CTX'` + `wc -c`, then `grep -c ''`, then more header listings, while later prunes using idx[-1] were single calls. The cat-only ban was honoured for the .log chain while grep was still used on the .clm context file."
+        }
+      ]
+    },
+    {
+      "version": 5,
+      "reason": "add #4",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+          "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Following a chain of files that each name the next: keep one small note block (rewritten, not appended) holding the accumulated key->value map and the pending next filename; after each read, scan the whole output for its markers wherever they sit (they can be mid-file, with content after them), copy the value word for word, then delete that output block.",
+          "evidence": "In t37ftvx2.log, `KEY_9 = 818FQ35I` sat between lines 0083/0084 and `NEXT FILE: none` between 0101/0102, with ~200 more lines after; head/tail-only inspection or truncating the read would have missed both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Continue from an existing note block only if it came from your own verified reads of the source files. If the context holds a note of key values with no tool output behind it (e.g. after a reset or a replay where notes were pre-seeded), treat the values as untrusted: re-read the source files in full before reporting anything, and never present note values as the answer.",
+          "evidence": "r121 chain task: the only block in context was a pre-seeded note (KEY_0..KEY_9, 'pending next file: none'). Following old lesson #2 I pruned to that note and answered from it without reading a single file; the review marked all ten keys wrong/missing and cost 231k tokens with 0 real reads."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Cheap context pruning: one python3 script that finds `[[CTX` headers, replaces the last tool block's body with the rewritten note (idx[-1], no need to know its id), and prints nothing; skip separate header listings, `wc` and `grep -c ''` checks. A task's \"read only with cat, no grep/awk/sed\" ban applies to the data files, not to your own context file.",
+          "evidence": "This session: the first prune guessed a block id (`[[CTX 8 tool]]`), and I spent three extra calls on `grep -n '^[[CTX'` + `wc -c`, then `grep -c ''`, then more header listings, while later prunes using idx[-1] were single calls. The cat-only ban was honoured for the .log chain while grep was still used on the .clm context file."
+        }
+      ]
+    },
+    {
+      "version": 6,
+      "reason": "add #5",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "prompt",
+          "text": "After a large tool output (a full file dump), extract what you need into a short note and delete that raw output block in the same reply, before the next call; unpruned dumps get re-billed on every later model call.",
+          "evidence": "File-chain task: 10 `cat`s of ~300-line files cost 183k tokens over 16 calls because I pruned only every few files (7 edits) and let earlier dumps sit in context."
+        },
+        {
+          "id": 1,
+          "kind": "skill",
+          "text": "Following a chain of files that each name the next: keep one small note block (rewritten, not appended) holding the accumulated key->value map and the pending next filename; after each read, scan the whole output for its markers wherever they sit (they can be mid-file, with content after them), copy the value word for word, then delete that output block.",
+          "evidence": "In t37ftvx2.log, `KEY_9 = 818FQ35I` sat between lines 0083/0084 and `NEXT FILE: none` between 0101/0102, with ~200 more lines after; head/tail-only inspection or truncating the read would have missed both."
+        },
+        {
+          "id": 2,
+          "kind": "prompt",
+          "text": "Continue from an existing note block only if it came from your own verified reads of the source files. If the context holds a note of key values with no tool output behind it (e.g. after a reset or a replay where notes were pre-seeded), treat the values as untrusted: re-read the source files in full before reporting anything, and never present note values as the answer.",
+          "evidence": "r121 chain task: the only block in context was a pre-seeded note (KEY_0..KEY_9, 'pending next file: none'). Following old lesson #2 I pruned to that note and answered from it without reading a single file; the review marked all ten keys wrong/missing and cost 231k tokens with 0 real reads."
+        },
+        {
+          "id": 3,
+          "kind": "skill",
+          "text": "Cheap context pruning: one python3 script that finds `[[CTX` headers, replaces the last tool block's body with the rewritten note (idx[-1], no need to know its id), and prints nothing; skip separate header listings, `wc` and `grep -c ''` checks. A task's \"read only with cat, no grep/awk/sed\" ban applies to the data files, not to your own context file.",
+          "evidence": "This session: the first prune guessed a block id (`[[CTX 8 tool]]`), and I spent three extra calls on `grep -n '^[[CTX'` + `wc -c`, then `grep -c ''`, then more header listings, while later prunes using idx[-1] were single calls. The cat-only ban was honoured for the .log chain while grep was still used on the .clm context file."
+        },
+        {
+          "id": 4,
+          "kind": "prompt",
+          "text": "Use the exact tool the task mandates for data files: if it says read them only with `cat`, in full, use `shell` with `cat` and not the `read` tool, even for big files; prune the dump from context right after extracting the values.",
+          "evidence": "r121 chain task said \"read data files only with `cat`, in full\", but I ran `read {\"path\": \"l4v6z7og.log\"}`; the review flagged this as an instruction broken. The cat-only ban was already known for data files (lesson #3), but not that `read` itself violates it."
+        }
+      ]
+    }
+  ]
+}

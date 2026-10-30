@@ -56,12 +56,12 @@ def clean(row):
     return row["success"] and not row["searched"]
 
 
-def run_copy(out, arm, family, seed, state, tag, log, mode="clm"):
-    """A run with a copy of `state`, so the run cannot change it."""
+def run_copy(out, arm, family, seed, state, tag, log, mode="clm", **kw):
+    """A run with a copy of `state`, so the run cannot change it. `kw` goes to `one`."""
     dst = os.path.join(out, "states", "copies", f"{tag}-{family}-{seed}.json")
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy(state, dst)
-    return one(out, arm, family, seed, state=dst, tag=tag, log=log, mode=mode)
+    return one(out, arm, family, seed, state=dst, tag=tag, log=log, mode=mode, **kw)
 
 
 def review(family, seed, row):
@@ -89,27 +89,29 @@ def review(family, seed, row):
     return "\n".join(lines)
 
 
-def episode(out, tag, family, seed, state):
-    """A learning episode on `state`: the task, a review, then /refine."""
-    row = one(out, tag, family, seed, state=state, tag=tag, log="learn.jsonl", mode="clm")
+def episode(out, tag, family, seed, state, refine=REFINE, home=None, env=None):
+    """A learning episode on `state`: the task, a review, then `refine`, in the
+    rig home `home` with the extra environment `env`."""
+    row = one(out, tag, family, seed, state=state, tag=tag, log="learn.jsonl", mode="clm", home=home, env=env)
     if row["session"]:
-        env = {"CTX_MODE": "clm", "CTX_BUDGET": BUDGET}
+        env = {"CTX_MODE": "clm", "CTX_BUDGET": BUDGET, **(env or {}), **({"RIG_HOME": home} if home else {})}
         rig(row["repo"], review(family, seed, row), state, row["session"], timeout=600, env=env)
-        rig(row["repo"], REFINE, state, row["session"], timeout=600, env=env)
+        rig(row["repo"], refine, state, row["session"], timeout=900, env=env)
     return row
 
 
-def suite(out, tag, state):
+def suite(out, tag, state, **kw):
+    """The gate suite with a copy of `state`: one gate seed of each learning family."""
     with cf.ThreadPoolExecutor(len(LEARN)) as pool:
-        jobs = {f: pool.submit(run_copy, out, "gate", f, GATE_SEED, state, tag, "gate.jsonl") for f in LEARN}
+        jobs = {f: pool.submit(run_copy, out, "gate", f, GATE_SEED, state, tag, "gate.jsonl", **kw) for f in LEARN}
         return {f: j.result() for f, j in jobs.items()}
 
 
-def admit(out, tag, state, cand, before):
+def admit(out, tag, state, cand, before, **kw):
     """(accept, confirmed losses, candidate rows after reruns, token ratio)."""
     lost = [f for f in LEARN if clean(before[f]) and not clean(cand[f])]
     with cf.ThreadPoolExecutor(max(1, len(lost))) as pool:
-        again = {f: pool.submit(run_copy, out, "gate", f, GATE_SEED, state, f"{tag}-rerun", "gate.jsonl")
+        again = {f: pool.submit(run_copy, out, "gate", f, GATE_SEED, state, f"{tag}-rerun", "gate.jsonl", **kw)
                  for f in lost}
         cand = {**cand, **{f: j.result() for f, j in again.items()}}
     confirmed = [f for f in lost if not clean(cand[f])]

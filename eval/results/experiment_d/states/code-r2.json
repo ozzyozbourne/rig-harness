@@ -1,0 +1,55 @@
+{
+  "version": 3,
+  "next_id": 2,
+  "lessons": [
+    {
+      "id": 0,
+      "kind": "skill",
+      "text": "After any large file read (a big `cat`, a build log, a long listing), shrink it in the context file with `ctx_trim` in the very next tool call, before anything else. Pass `keep=\"KEY_A|KEY_B\"` and also `note=\"<file> -> <kept facts>\"` so each padded block is dropped entirely and its facts merge into one accumulating ledger note, instead of leaving a hollowed-out `[[CTX n tool]]` block behind. Never type the literal text `[[CTX` into a message body.",
+      "evidence": "This session read a chain of 8 ~300-line log files: I trimmed with keep= but never note=, so the context file kept eight trimmed blocks and the task cost 136k tokens with 8 edits; one accumulating ledger note (file -> INCIDENT id severity, next file) would have carried every fact needed to sort and sum in a fraction of the text, with no need to re-derive it from scattered blocks."
+    },
+    {
+      "id": 1,
+      "kind": "prompt",
+      "text": "One shell call is one `sh`: a `cd` in it applies to every later command in that same call. Never put a `cd` before another command that expects the project directory — use absolute paths instead, and keep a data-file read as a bare `cat <file>` in its own call.",
+      "evidence": "Three times in a row `cd /tmp/.../.clm && python3 ...` followed by `cat next.log` in the same command failed with \"No such file or directory\", because the cd applied to the whole sh invocation."
+    }
+  ],
+  "history": [
+    {
+      "version": 0,
+      "reason": "add #0",
+      "lessons": []
+    },
+    {
+      "version": 1,
+      "reason": "add #1",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "After any large file read (a big `cat`, a build log, a listing), shrink it in the context file with the `ctx_trim` tool (args: path, keep=\"KEY_|NEXT FILE\", min_lines=12) in the very next tool call, before running anything else; it collapses long `[[CTX n tool]]` blocks to the matching lines only and never leaves a stray `[[CTX` header in a body.",
+          "evidence": "This session's chain of 10 300-line files: I left each cat's output in the context file while running other commands and hand-wrote python3 edits per block (8 edits, ~320k tokens). A stray literal `[[CTX 24 tool]]` I inserted into a body created a spurious block that broke index-based trimming (ValueError: substring not found)."
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "reason": "update #0",
+      "lessons": [
+        {
+          "id": 0,
+          "kind": "skill",
+          "text": "After any large file read (a big `cat`, a build log, a listing), shrink it in the context file with the `ctx_trim` tool (args: path, keep=\"KEY_|NEXT FILE\", min_lines=12) in the very next tool call, before running anything else; it collapses long `[[CTX n tool]]` blocks to the matching lines only and never leaves a stray `[[CTX` header in a body.",
+          "evidence": "This session's chain of 10 300-line files: I left each cat's output in the context file while running other commands and hand-wrote python3 edits per block (8 edits, ~320k tokens). A stray literal `[[CTX 24 tool]]` I inserted into a body created a spurious block that broke index-based trimming (ValueError: substring not found)."
+        },
+        {
+          "id": 1,
+          "kind": "prompt",
+          "text": "One shell call is one `sh`: a `cd` in it applies to every later command in that same call. Never put a `cd` before another command that expects the project directory — use absolute paths instead, and keep a data-file read as a bare `cat <file>` in its own call.",
+          "evidence": "Three times in a row `cd /tmp/.../.clm && python3 ...` followed by `cat next.log` in the same command failed with \"No such file or directory\", because the cd applied to the whole sh invocation."
+        }
+      ]
+    }
+  ]
+}
